@@ -1,0 +1,2236 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open Univer</title>
+<style>
+  :root {
+    --acc: #2f6bff; --acc-soft: color-mix(in srgb, var(--acc) 14%, transparent);
+    --bg: #f3f5fa; --card: #ffffff; --ink: #151a26; --mute: #6c7489; --line: #e4e8f1;
+    --bad: #e5484d; --bad-soft: #fde8e8; --ok: #1f9d55; --ok-soft: #e3f6ea; --warn: #c27c0e; --warn-soft: #fff4dc;
+    --radius: 16px; --fs: 15px;
+  }
+  [data-theme="dark"] {
+    --bg: #0f1218; --card: #1a1f2a; --ink: #e9edf5; --mute: #8f98ac; --line: #2a3140;
+    --bad-soft: #3a1d20; --ok-soft: #173126; --warn-soft: #3a2f15;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: #d9dde6; }
+  [data-theme="dark"] body, [data-theme="dark"] html { background: #05070a; }
+  body { font: var(--fs)/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
+  a { color: var(--acc); }
+  /* отступы под статус-бар и жестовую панель телефона (Capacitor передаёт их через --safe-area-inset-*) */
+  :root { --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)); }
+  .phone { max-width: 420px; margin: 0 auto; height: 100vh; background: var(--bg); position: relative; display: flex; flex-direction: column; overflow: hidden; padding-top: var(--sat); }
+  @media (min-width: 500px) { .phone { margin: 16px auto; height: calc(100vh - 32px); max-height: 880px; border-radius: 28px; box-shadow: 0 20px 60px rgba(0,0,0,.25); } }
+  .top { padding: 18px 18px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .top h1 { font-size: 24px; margin: 0; }
+  .top .back { border: 0; background: var(--card); color: var(--ink); width: 38px; height: 38px; border-radius: 12px; font-size: 20px; cursor: pointer; flex: none; }
+  .scroll { position: relative; flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 14px calc(96px + var(--sab)); overscroll-behavior: contain; }
+  /* потянуть вниз: весь экран едет вниз, сверху появляется крутилка */
+  .ptr { position: absolute; left: 50%; top: 0; width: 38px; height: 38px; margin-left: -19px; border-radius: 99px; background: var(--card); box-shadow: 0 4px 14px rgba(0,0,0,.15);
+    display: grid; place-items: center; opacity: 0; transform: translateY(-44px); z-index: 2; pointer-events: none; }
+  .ptr i { width: 20px; height: 20px; border-radius: 99px; border: 2.5px solid var(--acc); border-top-color: transparent; display: block; }
+  .ptr.busy i, .spin { animation: rot .8s linear infinite; }
+  .spin { width: 22px; height: 22px; border-radius: 99px; border: 2.5px solid var(--acc); border-top-color: transparent; display: inline-block; }
+  .top .spin { width: 18px; height: 18px; flex: none; }
+  .spin.w { border-color: #fff; border-top-color: transparent; }
+  .loadbox { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 18px; color: var(--mute); font-size: .9em; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  .card { background: var(--card); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+  .card.tap { cursor: pointer; transition: transform calc(.12s * var(--m, 1)); } .card.tap:active { transform: scale(.98); }
+  /* «Анимации: выкл» — никаких движений, в том числе бегущих названий файлов и мерцания скелетона */
+  [data-motion="off"] .fname.run span, [data-motion="off"] .skel { animation: none; }
+  .mute { color: var(--mute); font-size: .87em; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .grow { flex: 1; min-width: 0; }
+  .ellip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  h3 { margin: 0 0 2px; font-size: 1em; }
+  .sec { font-size: .8em; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin: 16px 4px 8px; font-weight: 600; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; background: var(--acc-soft); color: var(--acc); font-size: .78em; font-weight: 600; white-space: nowrap; }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); } .pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .warn { background: var(--warn-soft); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: .87em; }
+  .err { background: var(--bad-soft); color: var(--bad); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .empty { text-align: center; padding: 40px 20px; color: var(--mute); } .empty .ico { font-size: 44px; margin-bottom: 8px; }
+  .skel { height: 64px; border-radius: var(--radius); background: linear-gradient(90deg, var(--card), var(--line), var(--card)); background-size: 200% 100%; animation: sh 1.2s infinite; margin-bottom: 10px; }
+  @keyframes sh { to { background-position: -200% 0; } }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .92em; }
+  .kv:last-child { border-bottom: 0; } .kv span:first-child { color: var(--mute); } .kv span:last-child { text-align: right; }
+
+  /* плавающая панель: скругления, отступы, полупрозрачность с размытием */
+  nav.tabs { position: absolute; left: 12px; right: 12px; bottom: calc(10px + var(--sab)); display: flex; padding: 6px; z-index: 5;
+    border-radius: 26px; background: color-mix(in srgb, var(--card) 30%, transparent);
+    -webkit-backdrop-filter: blur(26px) saturate(1.8) brightness(1.05); backdrop-filter: blur(26px) saturate(1.8) brightness(1.05);
+    border: 1px solid rgba(255,255,255,.35); box-shadow: 0 8px 30px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.35); }
+  [data-theme="dark"] nav.tabs { border-color: rgba(255,255,255,.09); box-shadow: 0 8px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06); }
+  nav.tabs .ind { position: absolute; top: 6px; bottom: 6px; left: 6px; width: calc((100% - 12px) / 5); border-radius: 20px;
+    background: var(--acc-soft); transition: transform calc(.32s * var(--m, 1)) cubic-bezier(.22,.8,.24,1); }
+  nav.tabs button { flex: 1; border: 0; background: none; color: var(--mute); font-size: 11px; padding: 5px 0; cursor: pointer; position: relative; transition: color calc(.2s * var(--m, 1)); }
+  nav.tabs button .i { display: block; font-size: 20px; line-height: 26px; margin: 0 auto 1px; transition: transform calc(.25s * var(--m, 1)); }
+  nav.tabs button.on { color: var(--acc); font-weight: 600; } nav.tabs button.on .i { transform: scale(1.12); }
+  /* экраны — слои друг над другом: новый въезжает справа, «назад» — уезжает вправо (и тянется пальцем) */
+  .pages { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .page { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); will-change: transform; }
+  .page.front { z-index: 2; box-shadow: -10px 0 28px rgba(0,0,0,.10); }
+  .page.asleep { visibility: hidden; }
+  /* листалка: текущая страница и соседняя рядом, едут вместе за пальцем */
+  .pg { position: relative; will-change: transform; }
+  .pg-nb { position: absolute; top: 0; left: 0; width: 100%; }
+  .pg-cur, .pg-nb { display: flow-root; } /* одинаковые отступы у текущей и соседней страницы */
+
+  .hero { background: linear-gradient(135deg, var(--acc), color-mix(in srgb, var(--acc) 55%, #000)); color: #fff; border-radius: 22px; padding: 18px; margin-bottom: 12px; }
+  .hero { position: relative; }
+  .hero .hbtn { position: absolute; top: 10px; right: 10px; z-index: 1; border: 0; border-radius: 99px; padding: 8px 14px; background: rgba(255,255,255,.2); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+  .hero .hbtn::before { content: ''; position: absolute; inset: -10px; } /* попасть пальцем легче, чем видно глазом */
+  .hero .hbtn:active { background: rgba(255,255,255,.32); }
+  .hero .week { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 99px; background: rgba(255,255,255,.18); font-size: 12px; font-weight: 600; }
+  .hero .name { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .hero .sub { opacity: .85; font-size: .87em; }
+  .hero .stats { display: flex; gap: 8px; margin-top: 14px; }
+  .hero .stat { flex: 1; background: rgba(255,255,255,.16); border-radius: 14px; padding: 8px 10px; }
+  .hero .stat b { display: block; font-size: 20px; } .hero .stat span { font-size: 11px; opacity: .85; }
+  .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 4px; }
+  .quick button { border: 0; background: var(--card); color: var(--ink); border-radius: 14px; padding: 12px 4px; font-size: 12px; cursor: pointer; }
+  .quick button .i { font-size: 22px; display: block; margin-bottom: 2px; }
+
+  .lesson { display: flex; gap: 12px; }
+  .lesson .t { width: 52px; flex: none; text-align: right; font-weight: 700; font-size: .9em; }
+  .lesson .t small { display: block; font-weight: 400; color: var(--mute); }
+  .lesson .bar { width: 4px; border-radius: 4px; background: var(--acc); flex: none; }
+  .lesson.now .bar { background: var(--ok); } .lesson.past { opacity: .5; }
+  .room { flex: none; background: var(--acc); color: #fff; border-radius: 99px; padding: 3px 10px; font-size: .8em; font-weight: 600; white-space: nowrap; }
+  .gap { display: flex; gap: 10px; align-items: center; background: color-mix(in srgb, var(--mute) 12%, transparent); color: var(--mute); padding: 10px 16px; }
+  .gap b { font-weight: 600; } .gap .mute { margin-left: auto; }
+  /* дни недели: все помещаются в строку, подсветка плавно едет за пальцем */
+  .dbar { position: relative; display: flex; background: var(--card); border-radius: 14px; padding: 4px; margin-bottom: 6px; }
+  .dbar .ind { position: absolute; top: 4px; bottom: 4px; left: 4px; border-radius: 10px; background: var(--acc); will-change: transform; }
+  .dbar button { position: relative; flex: 1; border: 0; background: none; color: var(--ink); padding: 8px 0; font-size: .87em; font-weight: 600; cursor: pointer; transition: color calc(.2s * var(--m, 1)); touch-action: manipulation; }
+  .dbar button.on { color: #fff; }
+  .dbar button .td { position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 9px; background: var(--acc); }
+  .dbar button.on .td { background: #fff; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: .85em; color: var(--mute); }
+
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+  .chips button { flex: none; border: 0; background: var(--card); color: var(--ink); border-radius: 99px; padding: 7px 14px; font-size: .87em; cursor: pointer; }
+  .chips button.on { background: var(--acc); color: #fff; }
+  .seg { display: flex; background: var(--line); border-radius: 12px; padding: 3px; margin-bottom: 12px; }
+  .seg button { flex: 1; border: 0; background: none; padding: 8px; border-radius: 10px; color: var(--ink); cursor: pointer; font-weight: 600; font-size: .9em; }
+  .seg button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  /* «Текущие / Сессия»: белая плашка едет под кнопками */
+  .seg.slide { position: relative; }
+  .seg.slide .sind { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 10px; background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.1); will-change: transform; }
+  .seg.slide button { position: relative; } .seg.slide button.on { background: none; box-shadow: none; }
+
+  .gpa { display: flex; align-items: center; justify-content: space-between; }
+  .gpa b { font-size: 34px; color: var(--acc); }
+  .score { text-align: center; min-width: 46px; } .score b { display: block; font-size: 18px; } .score span { font-size: 10px; color: var(--mute); }
+  .mark { min-width: 44px; height: 44px; padding: 0 4px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; background: var(--acc-soft); color: var(--acc); flex: none; line-height: 1.1; }
+  .mark small { font-size: 10px; font-weight: 600; opacity: .75; }
+  .past-sep { display: flex; align-items: center; gap: 8px; margin: 14px 4px 8px; font-size: .8em; color: var(--mute); }
+  .past-sep::before, .past-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .lesson.past { opacity: .45; filter: grayscale(1); }
+  .mark.n { background: var(--bad-soft); color: var(--bad); }
+  .letter { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 17px; flex: none; background: var(--ok-soft); color: var(--ok); }
+  .letter.long { width: auto; min-width: 44px; max-width: 96px; padding: 4px 6px; font-size: 11px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; height: auto; min-height: 44px; }
+  .card h3, .card .mute, .kv span { overflow-wrap: anywhere; }
+  .letter.mid { background: var(--warn-soft); color: var(--warn); } .letter.low { background: var(--bad-soft); color: var(--bad); }
+
+  .year { background: color-mix(in srgb, var(--acc) 6%, transparent); border-radius: 20px; padding: 10px; margin-bottom: 14px; }
+  .year-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 10px; }
+  .year-head b { font-size: 1.15em; }
+  .gpa-badge { background: var(--acc); color: #fff; border-radius: 14px; padding: 6px 12px; text-align: center; }
+  .gpa-badge span { display: block; font-size: 10px; opacity: .85; } .gpa-badge b { font-size: 20px; }
+  .sem-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px; font-weight: 600; cursor: pointer; }
+  .wheel { width: 40px; height: 40px; border-radius: 99px; border: 0; padding: 4px; cursor: pointer; background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+  .wheel span { display: block; width: 100%; height: 100%; border-radius: 99px; border: 3px solid var(--card); }
+  .palette { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin-bottom: 8px; }
+  .palette button { aspect-ratio: 1; border-radius: 99px; border: 3px solid transparent; cursor: pointer; padding: 0; }
+  .palette button.on { border-color: var(--ink); }
+  .terms { font-size: 13.5px; line-height: 1.5; margin-bottom: 14px; }
+  .terms h4 { margin: 14px 0 4px; font-size: 14px; } .terms p { margin: 0 0 6px; }
+  .terms ul { margin: 0 0 8px; padding-left: 20px; } .terms li { margin-bottom: 3px; }
+  .opt-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: 12px; cursor: pointer; font-size: .93em; }
+  .opt-row.on { background: var(--acc-soft); color: var(--acc); font-weight: 600; }
+  .opt-row input { margin-top: 3px; accent-color: var(--acc); }
+  textarea.field, select.field { font: inherit; }
+  .agree { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 0 2px 12px; }
+  .agree input { margin-top: 2px; }
+  .sheet-bg { position: absolute; inset: 0; background: rgba(0,0,0,.4); z-index: 10; display: flex; align-items: flex-end; animation: fade calc(.18s * var(--m, 1)) ease-out; }
+  .sheet { background: var(--bg); width: 100%; max-height: 88%; overflow-y: auto; overflow-x: hidden; border-radius: 22px 22px 0 0; padding: 10px 16px 30px; animation: up calc(.26s * var(--m, 1)) cubic-bezier(.22,.8,.24,1); will-change: transform; overscroll-behavior: contain; }
+  .sheet-bg.closing { animation: none; opacity: 0; transition: opacity calc(.24s * var(--m, 1)); }
+  .sheet .grab { padding: 0; cursor: grab; }
+  .sheet .grab { width: 40px; height: 5px; border-radius: 9px; background: var(--line); margin: 0 auto 12px; }
+  @keyframes up { from { transform: translateY(100%); } } @keyframes fade { from { opacity: 0; } }
+
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal .h { text-align: center; font-size: 11px; color: var(--mute); padding: 4px 0; }
+  .cal .d { aspect-ratio: 1; border-radius: 10px; background: var(--card); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; border: 2px solid transparent; position: relative; }
+  .cal .d.out { visibility: hidden; } .cal .d.today { border-color: var(--acc); } .cal .d.sel { background: var(--acc); color: #fff; }
+  .cal .d .v, .vb { font-size: 10px; font-weight: 700; color: #fff; background: var(--ok); line-height: 1; border-radius: 99px; padding: 2px 5px; margin-top: 2px; display: inline-block; }
+  .cal .d .v.n { background: var(--bad); }
+  .cal .d .ab { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 9px; background: var(--bad); }
+  .cal .d.sel .v { background: #fff; color: var(--ok); }
+  .cal .d .dot { width: 5px; height: 5px; border-radius: 9px; background: var(--acc); margin-top: 2px; opacity: .6; } .cal .d.sel .dot { background: #fff; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--mute); margin: 8px 2px; }
+
+  .file { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  /* выбор скачанных файлов долгим нажатием */
+  .file[data-saved] { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; transition: background .15s; border-radius: 10px; }
+  .file .tick { display: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--mute, #999); flex: none; box-sizing: border-box; }
+  body.selecting .file[data-saved] .tick { display: block; }
+  body.selecting .file[data-saved] .btn { visibility: hidden; }
+  body.selecting nav.tabs { visibility: hidden; } /* панель выбора встаёт на место нижнего меню */
+  .file.sel { background: var(--acc-soft); }
+  .file.sel .tick { border-color: var(--acc); background: var(--acc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12l4 4 8-8' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat; }
+  .selbar { position: absolute; left: 12px; right: 12px; bottom: calc(22px + var(--sab)); z-index: 6; display: flex; align-items: center; gap: 8px; padding: 10px;
+    background: var(--card, #fff); border-radius: 20px; box-shadow: 0 8px 30px rgba(0,0,0,.2); animation: selin calc(.22s * var(--m, 1)) cubic-bezier(.22,.8,.24,1); }
+  .selbar b { flex: 1; min-width: 0; font-size: 15px; } .btn.bad { background: var(--bad, #e5484d); color: #fff; }
+  .selbar .btn { padding: 13px 18px; font-size: 15px; border-radius: 14px; min-height: 48px; touch-action: manipulation; }
+  .selbar [data-selx] { padding: 13px 15px; }
+  @keyframes selin { from { transform: translateY(20px); opacity: 0; } }
+  .fname { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .fname.full { white-space: normal; overflow-wrap: anywhere; }
+  .fname.marq { text-overflow: clip; } .fname span { display: inline-block; }
+  .fname.run span { animation: mq var(--dur, 6s) ease-in-out infinite alternate; }
+  @keyframes mq { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--dx)); } }
+  .sw { position: relative; width: 46px; height: 28px; flex: none; } .sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .sw i { position: absolute; inset: 0; border-radius: 99px; background: var(--line); transition: background calc(.2s * var(--m, 1)); cursor: pointer; }
+  .sw i::after { content: ''; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 99px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform calc(.2s * var(--m, 1)) cubic-bezier(.22,.8,.24,1); }
+  .sw input:checked + i { background: var(--acc); } .sw input:checked + i::after { transform: translateX(18px); }
+  .prev { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .prev .pv { flex: none; width: 54px; height: 44px; border-radius: 12px; background: var(--bg); display: grid; place-items: center; font-size: 20px; border: 1px dashed var(--line); }
+  .avatar { width: 48px; height: 48px; margin: 0; border-radius: 14px; flex: none; object-fit: cover; object-position: top; font-size: 22px; background: var(--line); }
+  .photo { width: 110px; height: 140px; object-fit: cover; border-radius: 18px; margin: 4px auto 12px; display: block; background: var(--line); }
+  .file:last-child { border-bottom: 0; }
+  .ext { width: 40px; height: 44px; border-radius: 10px; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff; flex: none; background: #8b93a7; }
+  .ext.pdf { background: #e5484d; } .ext.doc, .ext.docx { background: #2f6bff; } .ext.ppt, .ext.pptx { background: #f17c1b; } .ext.xls, .ext.xlsx { background: #1f9d55; }
+  .btn { border: 0; background: var(--acc); color: #fff; border-radius: 10px; padding: 8px 12px; font-size: .85em; font-weight: 600; cursor: pointer; flex: none; text-decoration: none; display: inline-block; }
+  .btn.ghost { background: var(--acc-soft); color: var(--acc); } .btn.ok { background: var(--ok); }
+  .btn.wide { width: 100%; padding: 14px; font-size: 1em; border-radius: 14px; text-align: center; }
+  .btn:disabled { opacity: .6; }
+  .kv.service-row { align-items: flex-start; gap: 12px; }
+  .kv.service-row > .service-title { flex: 1; min-width: 0; color: var(--ink); text-align: left; }
+  .service-row > .service-action { align-self: flex-start; flex: 0 0 136px; width: 136px; height: 48px; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+  .request-summary { flex: 1; min-width: 0; }
+  .request-summary .pill { display: inline-block; margin-top: 6px; }
+
+
+  .login { padding: 30px 22px; flex: 1; display: flex; flex-direction: column; justify-content: center; overflow-y: auto; }
+  .logo { width: 72px; height: 72px; border-radius: 22px; background: linear-gradient(135deg, var(--acc), color-mix(in srgb, var(--acc) 55%, #000)); color: #fff; display: grid; place-items: center; font-size: 34px; margin-bottom: 18px; flex: none; }
+  .field { width: 100%; padding: 14px; margin: 6px 0; border: 1px solid var(--line); border-radius: 14px; font-size: 16px; background: var(--card); color: var(--ink); }
+  .secret { -webkit-text-security: disc; }
+  .privacy { display: flex; gap: 10px; background: var(--ok-soft); border-radius: 14px; padding: 12px; font-size: 12.5px; margin-top: 16px; }
+
+  .opt { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); gap: 10px; }
+  .opt:last-child { border-bottom: 0; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; } .swatches button { width: 30px; height: 30px; border-radius: 99px; border: 3px solid transparent; cursor: pointer; }
+  .swatches button.on { border-color: var(--ink); }
+  .mini-seg { display: flex; background: var(--line); border-radius: 10px; padding: 2px; }
+  .mini-seg button { border: 0; background: none; padding: 6px 10px; border-radius: 8px; color: var(--ink); cursor: pointer; font-size: .85em; }
+  .mini-seg button.on { background: var(--card); font-weight: 600; }
+  /* строка настройки, где переключатель под подписью на всю ширину */
+  .opt.col { flex-direction: column; align-items: stretch; gap: 8px; }
+  .opt.col .mini-seg button { flex: 1; padding: 8px 4px; }
+  .rgb { display: grid; grid-template-columns: 18px 1fr 36px; gap: 8px; align-items: center; font-size: .85em; margin-top: 6px; }
+  .rgb input[type=range] { width: 100%; }
+  .preview { width: 44px; height: 44px; border-radius: 12px; border: 0; padding: 0; cursor: pointer; }
+
+  .num { width: 70px; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 15px; text-align: center; }
+  .res { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .9em; }
+  .res b { font-size: 1.1em; }
+  .toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: .87em; z-index: 20; animation: toastin calc(.22s * var(--m, 1)) cubic-bezier(.22,.8,.24,1); }
+  @keyframes toastin { from { opacity: 0; transform: translate(-50%, 8px); } }
+  /* ================= система дизайна (переменные задаёт design.js) ================= */
+  body { font-family: var(--font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); }
+  h1, h2, h3, .hero .name, .gpa b, .gpa-badge b { font-family: var(--font-head, inherit); }
+  .phone { background: var(--bg); }
+  .page { background: var(--page-bg, var(--bg)); background-size: var(--page-bg-size, cover); background-position: var(--page-bg-pos, center); background-repeat: no-repeat; }
+  /* карточки и всё, что выглядит как карточка */
+  .card, .quick button, .dbar, .top .back, .chips button:not(.on) {
+    background: var(--card-bg, var(--card)); border: var(--card-border, 0); box-shadow: var(--card-shadow, none);
+    -webkit-backdrop-filter: var(--card-filter, none); backdrop-filter: var(--card-filter, none); }
+  .card.gap { background: color-mix(in srgb, var(--mute) 12%, transparent); border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .card .card { box-shadow: none; }
+  .quick button { border-radius: max(6px, calc(var(--radius) - 2px)); }
+  .chips button { border-radius: max(6px, var(--btn-radius, 99px)); }
+  .hero { border-radius: calc(var(--radius) + 6px); }
+  .sheet { border-radius: calc(var(--radius) + 6px) calc(var(--radius) + 6px) 0 0; }
+  .btn { border-radius: var(--btn-radius, 10px); }
+  .btn.wide { border-radius: min(var(--btn-radius, 14px), 99px); }
+  .seg { border-radius: min(calc(var(--radius) - 4px), 14px); } .seg button, .seg .sind { border-radius: min(calc(var(--radius) - 6px), 11px); }
+  [data-card="brutal"] .btn, [data-card="brutal"] .seg, [data-card="brutal"] .chips button { border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+  [data-card="brutal"] h1, [data-card="brutal"] h3, [data-card="brutal"] .sec { letter-spacing: -.01em; font-weight: 800; }
+  [data-card="neon"] .sec { color: color-mix(in srgb, var(--acc) 70%, #fff); }
+  [data-card="neon"] .btn:not(.ghost) { box-shadow: 0 0 16px color-mix(in srgb, var(--acc) 55%, transparent); }
+  [data-card="soft"] .btn.ghost { background: var(--bg); box-shadow: 4px 4px 10px rgba(163,173,191,.5), -4px -4px 10px rgba(255,255,255,.9); }
+  [data-theme="dark"][data-card="soft"] .btn.ghost { box-shadow: 4px 4px 10px rgba(0,0,0,.45), -3px -3px 8px rgba(255,255,255,.04); }
+  [data-card="soft"] .seg { background: var(--bg); box-shadow: inset 3px 3px 7px rgba(163,173,191,.5), inset -3px -3px 7px rgba(255,255,255,.9); }
+  [data-theme="dark"][data-card="soft"] .seg { box-shadow: inset 3px 3px 7px rgba(0,0,0,.5), inset -3px -3px 7px rgba(255,255,255,.04); }
+  [data-card="glass"] .seg, [data-bgkind="photo"] .seg { background: color-mix(in srgb, var(--card) 35%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+  /* на фото или ярком фоне подписи разделов не должны теряться */
+  [data-bgkind="photo"] .sec, [data-bgkind="photo"] .top h1, [data-bgkind="mesh"] .top h1 { text-shadow: 0 1px 8px color-mix(in srgb, var(--bg) 70%, transparent); }
+
+  /* главная карточка */
+  .hero { background: var(--hero-bg); color: var(--hero-ink, #fff); }
+  [data-hero="glass"] .hero { -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); border: 1px solid rgba(255,255,255,.35); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 10px 30px color-mix(in srgb, var(--acc) 25%, transparent); }
+  [data-hero="outline"] .hero { border: 2px solid var(--acc); -webkit-backdrop-filter: var(--card-filter); backdrop-filter: var(--card-filter); }
+  [data-hero="mesh"] .hero { box-shadow: 0 12px 30px color-mix(in srgb, var(--acc) 30%, transparent); }
+  .hero .stat, .hero .week, .hero .hbtn { background: var(--hero-stat, rgba(255,255,255,.16)); color: inherit; }
+  [data-hero="tonal"] .hero .stat b, [data-hero="outline"] .hero .stat b { color: var(--acc); }
+  .hero .hbtn, .hero .week { display: inline-flex; align-items: center; gap: 5px; }
+  .hero .ic { width: 16px; height: 16px; }
+
+  /* заголовки и плотность */
+  [data-head="large"] .top h1 { font-size: 30px; letter-spacing: -.02em; }
+  [data-head="compact"] .top { padding: 12px 16px 6px; } [data-head="compact"] .top h1 { font-size: 19px; }
+  [data-density="compact"] .card { padding: 10px 12px; margin-bottom: 7px; } [data-density="compact"] .scroll { padding-left: 10px; padding-right: 10px; }
+  [data-density="compact"] .quick { gap: 6px; } [data-density="compact"] .quick button { padding: 9px 4px; }
+  [data-density="comfy"] .card { padding: 18px 20px; margin-bottom: 14px; } [data-density="comfy"] .quick { gap: 12px; } [data-density="comfy"] .quick button { padding: 16px 4px; }
+
+  /* нижнее меню */
+  nav.tabs { background: var(--nav-bg); border: var(--nav-border); box-shadow: var(--nav-shadow); -webkit-backdrop-filter: var(--nav-filter); backdrop-filter: var(--nav-filter); }
+  [data-theme="dark"] nav.tabs { border: var(--nav-border); box-shadow: var(--nav-shadow); }
+  [data-nav="docked"] nav.tabs { left: 0; right: 0; bottom: 0; border-radius: 0; padding: 6px 6px calc(6px + var(--sab)); border-width: 1px 0 0; border-style: solid; border-color: var(--line); box-shadow: none; }
+  [data-nav="docked"] nav.tabs .ind { bottom: calc(6px + var(--sab)); }
+  [data-nav="minimal"] nav.tabs { left: 0; right: 0; bottom: 0; border-radius: 0; padding: 4px 6px calc(4px + var(--sab)); background: var(--bg); border: 0; border-top: 1px solid var(--line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  [data-nav="minimal"] nav.tabs .ind { bottom: calc(4px + var(--sab)); top: 4px; }
+  [data-nav="island"] nav.tabs { left: 50%; right: auto; width: min(300px, calc(100% - 48px)); transform: translateX(-50%); border-radius: 99px; }
+  [data-nav="island"] nav.tabs button, [data-navlabels="off"] nav.tabs button { font-size: 0; padding: 9px 0; }
+  [data-nav="island"] nav.tabs .ind, [data-navlabels="off"] nav.tabs .ind { border-radius: 99px; }
+  nav.tabs button .i { display: flex; justify-content: center; line-height: 1; height: 26px; align-items: center; }
+  nav.tabs .ic { width: 24px; height: 24px; }
+  /* подсветка выбранной вкладки: плашка / капсула под иконкой (Android) / точка / линия / ничего */
+  nav.tabs .ind::before { content: ''; position: absolute; display: none; }
+  [data-navind="capsule"] nav.tabs .ind, [data-navind="dot"] nav.tabs .ind, [data-navind="line"] nav.tabs .ind, [data-navind="none"] nav.tabs .ind { background: none; }
+  [data-navind="capsule"] nav.tabs .ind::before { display: block; left: 50%; top: 4px; width: 58px; height: 30px; margin-left: -29px; border-radius: 99px; background: var(--acc-soft); }
+  [data-navind="capsule"] nav.tabs button.on .i { transform: none; }
+  [data-navind="dot"] nav.tabs .ind::before { display: block; left: 50%; bottom: 1px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 9px; background: var(--acc); }
+  [data-navind="line"] nav.tabs .ind::before { display: block; left: 50%; top: -6px; width: 26px; height: 3px; margin-left: -13px; border-radius: 0 0 3px 3px; background: var(--acc); }
+  [data-nav="docked"][data-navind="line"] nav.tabs .ind::before, [data-nav="minimal"][data-navind="line"] nav.tabs .ind::before { top: -7px; }
+  [data-navind="none"] nav.tabs button.on .i { transform: scale(1.08); }
+  [data-navlabels="off"][data-navind="capsule"] nav.tabs .ind::before, [data-nav="island"][data-navind="capsule"] nav.tabs .ind::before { top: 50%; margin-top: -17px; height: 34px; }
+
+  /* иконки */
+  .ic { width: 22px; height: 22px; display: inline-block; vertical-align: middle; fill: none; stroke: currentColor; stroke-width: var(--icw, 1.8); stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .ic .d { fill: currentColor; stroke: none; opacity: 0; }
+  .emo { display: none; }
+  [data-icons="emoji"] .ic { display: none; } [data-icons="emoji"] .emo { display: inline; font-size: 1.2em; line-height: 1; }
+  [data-icons="duo"] .ic .d { opacity: .22; }
+  [data-icons="fill"] .ic .d { opacity: 1; } [data-icons="fill"] .ic .in { stroke: var(--card); }
+  [data-icons="line"] nav.tabs button.on .ic .d { opacity: .2; } /* выбранная вкладка чуть «заполняется» */
+  .ict { display: inline-grid; place-items: center; color: var(--acc); }
+  [data-iconcolor="multi"] .ict { color: var(--tc); } [data-iconcolor="mono"] .ict { color: var(--ink); }
+  .quick button .i { display: grid; place-items: center; height: 34px; margin-bottom: 4px; } .quick .ic { width: 28px; height: 28px; }
+  .lic { display: grid; place-items: center; flex: none; width: 40px; } .lic .ic { width: 26px; height: 26px; }
+  .prev .pv .ic { width: 22px; height: 22px; }
+  /* плитки: белый значок на цветном скруглённом квадрате */
+  [data-icons="tiles"] .ict { width: 40px; height: 40px; border-radius: 12px; color: #fff; background: linear-gradient(150deg, color-mix(in srgb, var(--tc) 72%, #fff), var(--tc)); box-shadow: 0 4px 10px color-mix(in srgb, var(--tc) 30%, transparent); }
+  [data-icons="tiles"][data-iconcolor="acc"] .ict { --tc: var(--acc); } [data-icons="tiles"][data-iconcolor="mono"] .ict { --tc: #6b7280; }
+  [data-icons="tiles"] .ict .ic { width: 24px; height: 24px; } [data-icons="tiles"] .ict .ic .d { opacity: .28; fill: #fff; }
+  [data-icons="tiles"] .quick button .i { height: 44px; } [data-icons="tiles"] .lic { width: 44px; }
+  [data-icons="tiles"] .prev .pv { border: 0; background: none; }
+  [data-icons="tiles"] nav.tabs .ic .d { opacity: .22; }
+
+  /* экран «Дизайн» */
+  .minis { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 10px; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .mini { flex: none; border: 0; background: none; padding: 0; cursor: pointer; scroll-snap-align: center; color: var(--ink); }
+  .mini-ph { position: relative; display: block; width: 92px; height: 164px; border-radius: 16px; overflow: hidden; padding: 8px 6px; border: 2px solid transparent; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+  .mini.on .mini-ph { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
+  .mini-hero { display: block; height: 36px; margin-bottom: 5px; }
+  .mini-row { display: flex; gap: 4px; margin-bottom: 5px; } .mini-row span { flex: 1; height: 18px; display: block; }
+  .mini-card { display: block; height: 22px; margin-bottom: 4px; padding: 5px 6px; } .mini-card i { display: block; height: 3px; border-radius: 3px; margin-bottom: 3px; width: 70%; opacity: .8; } .mini-card i + i { width: 45%; opacity: .5; }
+  .mini-nav { position: absolute; left: 8px; right: 8px; bottom: 6px; height: 16px; display: flex; align-items: center; justify-content: space-around; padding: 0 8px; }
+  .mini-nav i { width: 7px; height: 7px; border-radius: 3px; }
+  .mini-name { display: block; text-align: center; font-size: 12px; margin-top: 6px; font-weight: 600; }
+  .mini-seg.dz { flex-wrap: wrap; } .mini-seg.dz button { flex: 1 0 auto; }
+  .dz-range { display: flex; align-items: center; gap: 10px; } .dz-range input { flex: 1; accent-color: var(--acc); } .dz-range b { min-width: 52px; text-align: right; font-size: .9em; }
+  .dz-color { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 12px; padding: 6px 12px 6px 6px; cursor: pointer; }
+  .dz-color span { width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(0,0,0,.1); }
+  .dz-icons { grid-template-columns: repeat(6, 1fr); margin-bottom: 4px; } .dz-ic { display: grid; place-items: center; height: 48px; }
+
+  /* круглая палитра */
+  .cp-prev { width: 40px; height: 40px; border-radius: 12px; border: 2px solid var(--line); }
+  .cp-wheel { position: relative; width: 260px; height: 260px; max-width: 100%; margin: 4px auto 14px; touch-action: none; }
+  .cp-wheel canvas { width: 100%; height: 100%; border-radius: 50%; display: block; }
+  .cp-dot { position: absolute; left: -13px; top: -13px; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 3px 8px rgba(0,0,0,.3); pointer-events: none; }
+  .cp-row { display: grid; grid-template-columns: 66px 1fr 36px; gap: 10px; align-items: center; margin-bottom: 10px; font-size: .85em; font-weight: 600; }
+  .cp-row b { text-align: right; font-weight: 600; color: var(--mute); }
+  .cp-row input[type=range] { -webkit-appearance: none; appearance: none; height: 14px; border-radius: 99px; outline: 0; border: 1px solid rgba(0,0,0,.08); }
+  .cp-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; }
+  .cp-row input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  /* редактор фона-фото */
+  .phed { position: absolute; inset: 0; z-index: 60; background: #000; overflow: hidden; animation: phIn calc(220ms * var(--m, 1)) ease both; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .phed.closing { animation: phOut calc(180ms * var(--m, 1)) ease both; pointer-events: none; }
+  @keyframes phIn { from { opacity: 0; transform: scale(1.03); } }
+  @keyframes phOut { to { opacity: 0; transform: scale(1.03); } }
+  .phed-stage { position: absolute; left: 0; right: 0; overflow: hidden; cursor: grab; touch-action: none; }
+  .phed.moving .phed-stage { cursor: grabbing; }
+  .phed-img { position: absolute; inset: 0; background-repeat: no-repeat; }
+  .phed-tint { position: absolute; inset: 0; pointer-events: none; }
+  .phed-ghost { position: absolute; inset: 0; padding: 64px 16px 0; pointer-events: none; opacity: .9; transition: opacity calc(200ms * var(--m, 1)); }
+  .phed-ghost .hero, .phed-ghost .card, .phed-ghost .quick button { display: block; width: 100%; border-radius: var(--radius); margin-bottom: 10px; }
+  .phed-ghost .quick button { margin: 0; }
+  .phed.noghost .phed-ghost, .phed.moving .phed-ghost { opacity: 0; }
+  .phed-top { position: absolute; left: 0; right: 0; top: 0; padding: calc(10px + var(--sat, 0px)) 12px 10px; display: flex; gap: 8px; align-items: center;
+    background: linear-gradient(rgba(0,0,0,.55), transparent); }
+  .phed-top .phed-b[data-ph="fit"] { margin-left: auto; }
+  .phed-b { border: 0; border-radius: 99px; padding: 9px 13px; white-space: nowrap; font: inherit; font-weight: 600; font-size: 14px; color: #fff; cursor: pointer;
+    background: rgba(255,255,255,.18); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .phed-b.icon { padding: 7px 10px; display: grid; place-items: center; } .phed-b .ic { width: 22px; height: 22px; stroke-width: 2; }
+  .phed-b.acc { background: var(--acc); }
+  .phed-hint { position: absolute; left: 0; right: 0; top: calc(62px + var(--sat, 0px)); text-align: center; color: #fff; font-size: 13px; text-shadow: 0 1px 6px rgba(0,0,0,.6); pointer-events: none; opacity: .9; }
+  .phed-panel { position: absolute; left: 10px; right: 10px; bottom: calc(10px + var(--sab, 0px)); padding: 10px 14px 6px; border-radius: 22px; color: #fff;
+    background: rgba(20,20,24,.62); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); transition: opacity calc(200ms * var(--m, 1)); }
+  .phed.moving .phed-panel, .phed.moving .phed-hint { opacity: .25; }
+  .phed-tabs, .phed-seg { display: flex; gap: 4px; background: rgba(255,255,255,.1); border-radius: 12px; padding: 3px; margin-bottom: 10px; }
+  .phed-tabs button, .phed-seg button { flex: 1; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; font-weight: 600; padding: 7px 4px; border-radius: 9px; cursor: pointer; opacity: .75; }
+  .phed-tabs button.on, .phed-seg button.on { background: rgba(255,255,255,.22); opacity: 1; }
+  .phed-r { display: grid; grid-template-columns: 96px 1fr 46px; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px; }
+  .phed-r b { text-align: right; font-weight: 600; opacity: .8; }
+  .phed-r input { width: 100%; accent-color: var(--acc); }
+  /* миниатюра фона на экране «Дизайн» */
+  .ph-thumb { position: relative; display: block; margin: 4px auto 0; padding: 0; border: 0; border-radius: 16px; overflow: hidden; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.2); background: var(--bg); }
+  .ph-thumb > span:first-child { position: absolute; left: 0; top: 0; transform-origin: 0 0; background-repeat: no-repeat; }
+  .ph-thumb-ui { position: absolute; inset: 12px 9px; display: flex; flex-direction: column; gap: 6px; }
+  .ph-thumb-ui i { display: block; height: 22%; border-radius: 7px; background: var(--card-bg, var(--card)); border: var(--card-border, 0); }
+  .ph-thumb-ui i:first-child { height: 30%; background: var(--hero-bg); }
+  /* перестановка плиток на главной */
+  .quick button { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: transform calc(160ms * var(--m, 1)) ease, opacity calc(160ms * var(--m, 1)), box-shadow calc(160ms * var(--m, 1)); }
+  .quick button.pressing { transform: scale(.94); transition-duration: calc(360ms * var(--m, 1)); }
+  .quick.arranging { touch-action: none; }
+  .quick.arranging button:not(.lifted):not(.landing) { opacity: .82; }
+  .quick button.lifted { position: relative; z-index: 5; transition: box-shadow calc(160ms * var(--m, 1)); opacity: 1;
+    box-shadow: 0 14px 30px rgba(0,0,0,.22), 0 0 0 2px var(--acc); cursor: grabbing; }
+  .quick button.landing { position: relative; z-index: 4; transition: none; }
+  /* экран защиты */
+  .lockscr { position: fixed; inset: 0; z-index: 1000; display: flex; justify-content: center; color: var(--ink); --lk-press: color-mix(in srgb, var(--ink) 14%, transparent);
+    background: radial-gradient(at 20% 0%, color-mix(in srgb, var(--acc) 22%, var(--bg)) 0, transparent 60%), radial-gradient(at 100% 100%, color-mix(in srgb, var(--acc) 14%, var(--bg)) 0, transparent 55%), var(--bg);
+    animation: lkIn calc(240ms * var(--m, 1)) ease both; outline: 0; user-select: none; -webkit-user-select: none; }
+  .lockscr.closing { animation: lkOut calc(200ms * var(--m, 1)) ease both; pointer-events: none; }
+  @keyframes lkIn { from { opacity: 0; } }
+  @keyframes lkOut { to { opacity: 0; transform: scale(1.06); } }
+  .lk-in { width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; padding: calc(56px + var(--sat, 0px)) 24px calc(20px + var(--sab, 0px)); }
+  .lk-logo { width: 60px; height: 60px; border-radius: 20px; display: grid; place-items: center; color: #fff; margin-bottom: 16px;
+    background: linear-gradient(150deg, color-mix(in srgb, var(--acc) 70%, #fff), var(--acc)); box-shadow: 0 10px 26px color-mix(in srgb, var(--acc) 40%, transparent); }
+  .lk-logo .ic { width: 30px; height: 30px; } .lk-logo .ic .d { opacity: 1; fill: #fff; }
+  .lk-title { font-size: 20px; margin: 0 0 6px; text-align: center; }
+  .lk-msg { min-height: 20px; font-size: 14px; color: var(--mute); text-align: center; margin-bottom: 18px; transition: color .2s; }
+  .lk-msg.bad { color: var(--bad, #e5484d); }
+  .lk-body { width: 100%; display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .lk-foot { margin-top: 12px; }
+  .lk-link { border: 0; background: none; color: var(--acc); font: inherit; font-weight: 600; padding: 10px 14px; cursor: pointer; }
+  .lockscr.wait .lk-pad, .lockscr.wait .lk-pat, .lockscr.wait .lk-pass { opacity: .35; pointer-events: none; }
+  /* PIN */
+  .lk-dots { display: flex; gap: 16px; margin-bottom: 34px; height: 16px; }
+  .lk-dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--ink) 45%, transparent); transition: background calc(120ms * var(--m, 1)), transform calc(160ms * var(--m, 1)) cubic-bezier(.3,1.6,.5,1), border-color .15s; }
+  .lk-dots i.on { background: var(--acc); border-color: var(--acc); transform: scale(1.15); }
+  .lk-dots.bad i { border-color: var(--bad, #e5484d); background: var(--bad, #e5484d); }
+  .lk-pad { display: grid; grid-template-columns: repeat(3, 76px); gap: 16px 26px; }
+  .lk-pad button { width: 76px; height: 76px; border-radius: 50%; border: 0; font: inherit; font-size: 30px; font-weight: 500; color: var(--ink); cursor: pointer;
+    background: color-mix(in srgb, var(--ink) 6%, transparent); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; transition: transform .1s; }
+  .lk-pad button:active { transform: scale(.92); background: var(--lk-press); }
+  .lk-pad button small { font-size: 9px; letter-spacing: .14em; opacity: .5; margin-top: 3px; font-weight: 600; }
+  .lk-pad .lk-k { background: none; } .lk-pad .lk-k .ic { width: 30px; height: 30px; }
+  .lk-pad span { width: 76px; }
+  /* пароль */
+  .lk-pass { width: 100%; display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px 6px 4px 14px; margin-bottom: 14px; }
+  .lk-pass input { flex: 1; border: 0; background: none; color: var(--ink); font: inherit; font-size: 17px; padding: 10px 0; outline: 0; min-width: 0; }
+  .lk-pass .lk-k { border: 0; background: none; color: var(--mute); padding: 8px; cursor: pointer; } .lk-pass .lk-k.on { color: var(--acc); }
+  .lk-go { width: 100%; }
+  /* графический ключ */
+  .lk-pat { width: min(300px, 82vw); aspect-ratio: 1; touch-action: none; }
+  .lk-pat svg { width: 100%; height: 100%; overflow: visible; }
+  .lk-pt .dot { fill: color-mix(in srgb, var(--ink) 55%, transparent); transition: fill .15s; }
+  .lk-pt .halo { fill: transparent; }
+  .lk-pt.on .dot { fill: var(--acc); } .lk-pt.on .halo { fill: color-mix(in srgb, var(--acc) 20%, transparent); }
+  .lk-line, .lk-tail { fill: none; stroke: color-mix(in srgb, var(--acc) 75%, transparent); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+  .lk-pat.bad .lk-line { stroke: color-mix(in srgb, var(--bad, #e5484d) 75%, transparent); }
+  .lk-pat.bad .lk-pt.on .dot { fill: var(--bad, #e5484d); } .lk-pat.bad .lk-pt.on .halo { fill: color-mix(in srgb, var(--bad, #e5484d) 18%, transparent); }
+  .lk-bio { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 0; background: none; color: var(--acc); font: inherit; font-size: 13px; font-weight: 600; margin-top: 18px; cursor: pointer; }
+  .lk-bio .ic { width: 40px; height: 40px; }
+  /* выбор защиты в настройках */
+  .lk-types { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 4px; }
+  .lk-type { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 1.5px solid var(--line); background: none; color: var(--ink); border-radius: 14px; padding: 10px 2px 8px; font: inherit; font-size: 11px; cursor: pointer; line-height: 1.15; text-align: center; }
+  .lk-type span { height: 24px; display: grid; place-items: center; color: var(--mute); } .lk-type b { font-size: 13px; letter-spacing: -.05em; }
+  .lk-type.on { border-color: var(--acc); background: var(--acc-soft); } .lk-type.on span { color: var(--acc); }
+  [data-icons="duo"] .lk-type .ic .d, .lk-type .ic .d { opacity: 1; }
+  /* экран «Дизайн» v2: предпросмотр + вкладки + плитки с примерами */
+  .dz-head { position: sticky; top: -4px; z-index: 4; margin: -4px -14px 0; padding: 4px 14px 0;
+    background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+  .dz-top { display: flex; gap: 16px; align-items: center; padding: 6px 0 10px; }
+  .dz-live { position: relative; flex: none; border-radius: 18px; overflow: hidden; border: 3px solid color-mix(in srgb, var(--ink) 85%, transparent);
+    box-shadow: 0 8px 22px rgba(0,0,0,.18); background: var(--bg); pointer-events: none; }
+  .dz-rep { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden;
+    background: var(--page-bg, var(--bg)); background-size: var(--page-bg-size, cover); background-position: var(--page-bg-pos, center); background-repeat: no-repeat; }
+  .dz-rep-in { padding: 6px 16px 0; }
+  .dz-sb { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; font-size: 15px; color: var(--ink); }
+  .dz-sb span { display: flex; gap: 5px; } .dz-sb i { width: 9px; height: 9px; border-radius: 3px; background: var(--ink); opacity: .7; }
+  .dz-rep .quick button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; padding-right: 6px; }
+  .dz-rep .hero .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 96px; }
+  .dz-rep .hero { margin-bottom: 12px; } .dz-rep .sec { margin-top: 14px; }
+  .dz-rep nav.tabs { position: absolute; }
+  .dz-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .dz-cap { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); }
+  .dz-info > b { font-size: 20px; line-height: 1.15; font-family: var(--font-head, inherit); }
+  .dz-mode { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 99px; padding: 7px 13px 7px 9px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .dz-mode .ic { width: 18px; height: 18px; }
+  /* вкладки разделов */
+  .dz-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 0 10px; }
+  .dz-tabs::-webkit-scrollbar { display: none; }
+  .dz-tabs button { flex: none; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 62px; padding: 6px 8px 8px; border: 0; background: none;
+    color: var(--mute); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; position: relative; }
+  .dz-tabs button .ic { width: 22px; height: 22px; }
+  .dz-tabs button.on { color: var(--acc); }
+  .dz-tabs button.on .ic .d { opacity: .25; }
+  .dz-tabs button.on::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--acc); }
+  /* содержимое раздела */
+  .dz-pane { padding: 14px 0 24px; } .dz-pane.dz-anim { animation: dzIn calc(220ms * var(--m, 1)) ease both; }
+  @keyframes dzIn { from { opacity: 0; transform: translateY(6px); } }
+  .dz-lead { color: var(--mute); font-size: 14px; margin: 0 2px 14px; line-height: 1.4; }
+  .dz-f { background: var(--card-bg, var(--card)); border: var(--card-border, 0); box-shadow: var(--card-shadow, none); -webkit-backdrop-filter: var(--card-filter, none); backdrop-filter: var(--card-filter, none);
+    border-radius: var(--radius, 16px); padding: 14px; margin-bottom: 12px; }
+  .dz-ft { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .dz-ft b { font-size: 15px; }
+  .dz-ft em { font-style: normal; font-weight: 700; font-size: 13px; color: var(--acc); background: var(--acc-soft); padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+  .dz-fh { color: var(--mute); font-size: 12.5px; line-height: 1.35; margin-top: 3px; }
+  .dz-f > .dz-tiles, .dz-f > .dz-acc, .dz-f > .btn, .dz-f > .dz-colors, .dz-f > label.btn { margin-top: 12px; }
+  .dz-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .dz-note { background: var(--acc-soft); border-radius: 14px; padding: 12px 14px; font-size: 13.5px; line-height: 1.4; margin-bottom: 12px; }
+  .dz-tip { display: flex; gap: 10px; align-items: center; color: var(--mute); font-size: 13px; padding: 4px 6px; }
+  .dz-tip .ic { width: 26px; height: 26px; color: var(--acc); }
+  /* плитки выбора */
+  .dz-tiles { display: grid; gap: 8px; }
+  .dz-tiles.c2 { grid-template-columns: repeat(2, 1fr); } .dz-tiles.c3 { grid-template-columns: repeat(3, 1fr); } .dz-tiles.c4 { grid-template-columns: repeat(4, 1fr); }
+  .dz-tile { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px 6px 8px; border-radius: 14px; cursor: pointer;
+    border: 1.5px solid var(--line); background: color-mix(in srgb, var(--bg) 60%, transparent); color: var(--ink); font: inherit; min-width: 0;
+    transition: border-color calc(.15s * var(--m, 1)), transform calc(.15s * var(--m, 1)); }
+  .dz-tile:active { transform: scale(.96); }
+  .dz-tile.on { border: 2px solid var(--acc); padding: 5.5px 5.5px 7.5px; background: var(--acc-soft); }
+  .dz-tile.on::after { content: ''; position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--card);
+    background: var(--acc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/14px no-repeat; }
+  .dz-ex { height: 54px; border-radius: 10px; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--mute) 10%, transparent); }
+  .dz-lb { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dz-tile.on .dz-lb { color: var(--acc); }
+  .c4 .dz-ex { height: 48px; } .c4 .dz-lb { font-size: 11px; }
+  /* примеры */
+  .ex-scene { width: 100%; height: 100%; display: grid; place-items: center; }
+  .ex-card { width: 72%; height: 58%; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 8px; }
+  .ex-card b { height: 3px; width: 70%; border-radius: 3px; background: var(--ink); opacity: .7; } .ex-card b + b { width: 45%; opacity: .35; }
+  .ex-swatch { width: 100%; height: 100%; display: grid; place-items: center; color: var(--mute); } .ex-swatch .ic { width: 22px; height: 22px; }
+  .ex-shadow { width: 60%; height: 50%; border-radius: 8px; background: var(--card); }
+  .ex-dens { width: 64%; display: flex; flex-direction: column; gap: var(--g); } .ex-dens i { height: 7px; border-radius: 3px; background: var(--card); box-shadow: 0 0 0 1px var(--line); }
+  .ex-screen { position: relative; width: 100%; height: 100%; background: var(--bg); }
+  .ex-lines { position: absolute; left: 10%; right: 10%; top: 9px; height: 14px; border-radius: 4px; background: var(--card); box-shadow: 0 0 0 1px var(--line); }
+  .ex-nav { position: absolute; display: flex; align-items: center; justify-content: space-around; height: 12px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .ex-nav u { width: 4px; height: 4px; border-radius: 2px; background: var(--mute); } .ex-nav u.on { background: var(--acc); width: 8px; }
+  .ex-nav-floating { left: 8%; right: 8%; bottom: 5px; border-radius: 99px; }
+  .ex-nav-docked { left: 0; right: 0; bottom: 0; height: 14px; border-radius: 0; box-shadow: 0 -1px 0 var(--line); }
+  .ex-nav-island { left: 28%; right: 28%; bottom: 5px; border-radius: 99px; } .ex-nav-island u:nth-child(4) { display: none; }
+  .ex-nav-minimal { left: 0; right: 0; bottom: 0; height: 13px; border-radius: 0; background: var(--bg); box-shadow: 0 -1px 0 var(--line); }
+  .ex-navrow { display: flex; gap: 4px; align-items: center; }
+  .ex-navrow u { position: relative; display: grid; place-items: center; width: 26px; height: 30px; color: var(--mute); }
+  .ex-navrow u .ic { width: 16px; height: 16px; position: relative; } .ex-navrow u.on { color: var(--acc); }
+  .ex-ind-pill u.on::before { content: ''; position: absolute; inset: 2px 0; border-radius: 8px; background: var(--acc-soft); }
+  .ex-ind-capsule u.on::before { content: ''; position: absolute; left: -2px; right: -2px; top: 7px; height: 16px; border-radius: 99px; background: var(--acc-soft); }
+  .ex-ind-dot u.on::after { content: ''; position: absolute; bottom: 1px; width: 4px; height: 4px; border-radius: 4px; background: var(--acc); }
+  .ex-ind-line u.on::after { content: ''; position: absolute; top: 0; width: 14px; height: 2.5px; border-radius: 2px; background: var(--acc); }
+  .ex-lab u { height: 36px; align-content: center; } .ex-lab small { font-size: 7px; line-height: 1; margin-top: 2px; color: inherit; }
+  .ex-icons { display: flex; gap: 6px; align-items: center; } .ex-icons .ict { color: var(--acc); } .ex-icons .ic { width: 20px; height: 20px; }
+  .ex-icons .emo { display: none; } .ex-icons .ic { display: inline-block; }
+  .dz-ex .ex-icons[data-exi] .ic .d { opacity: .22; } .dz-ex .ex-icons[data-exi="line"] .ic .d { opacity: 0; }
+  .dz-ex .ex-icons[data-exi="fill"] .ic .d { opacity: 1; } .dz-ex .ex-icons[data-exi="fill"] .ic .in { stroke: var(--card); }
+  .dz-ex .ex-icons[data-exi="emoji"] .ic { display: none; } .dz-ex .ex-icons[data-exi="emoji"] .emo { display: inline; font-size: 18px; }
+  .dz-ex .ex-icons .ict { width: auto; height: auto; background: none; box-shadow: none; border-radius: 0; }
+  .dz-ex .ex-icons[data-exi="tiles"] .ict { width: 24px; height: 24px; border-radius: 7px; color: #fff; background: linear-gradient(150deg, color-mix(in srgb, var(--tc) 72%, #fff), var(--tc)); }
+  .dz-ex .ex-icons[data-exi="tiles"] .ic { width: 15px; height: 15px; } .dz-ex .ex-icons[data-exi="tiles"] .ic .d { fill: #fff; opacity: .28; }
+  .dz-ex .ex-icons[data-exc="acc"] .ict { color: var(--acc); --tc: var(--acc); } .dz-ex .ex-icons[data-exc="multi"] .ict { color: var(--tc); } .dz-ex .ex-icons[data-exc="mono"] .ict { color: var(--ink); --tc: #6b7280; }
+  .dz-ex .ex-icons[data-exc] .ict { background: none !important; } .dz-ex .ex-icons[data-exc] .ict .ic .d { fill: currentColor; }
+  .ex-hero { width: 80%; height: 66%; border-radius: 8px; padding: 6px 7px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 6px 1fr; gap: 4px; }
+  .ex-hero b { grid-column: 1 / -1; width: 55%; height: 4px; border-radius: 3px; opacity: .8; } .ex-hero s { border-radius: 4px; text-decoration: none; }
+  .ex-hero-outline { border: 1.5px solid var(--acc); } .ex-hero-glass { box-shadow: inset 0 0 0 1px rgba(255,255,255,.4); }
+  .ex-theme { width: 70%; height: 82%; border-radius: 8px; padding: 5px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 0 0 1px var(--line); }
+  .ex-theme b { height: 12px; border-radius: 4px; background: var(--acc); } .ex-theme i { height: 7px; border-radius: 3px; }
+  .ex-light { background: #f4f6fa; } .ex-light i { background: #fff; box-shadow: 0 0 0 1px #e3e7ee; }
+  .ex-dark { background: #121418; } .ex-dark i { background: #23262d; }
+  .ex-auto { background: linear-gradient(135deg, #f4f6fa 50%, #121418 50%); } .ex-auto i { background: color-mix(in srgb, #888 50%, transparent); }
+  .ex-font { font-size: 22px; font-weight: 600; line-height: 1; } .ex-font small { font-size: 11px; margin-left: 3px; opacity: .6; }
+  .ex-head { font-weight: 800; line-height: 1; font-family: var(--font-head, inherit); }
+  /* цвета */
+  .dz-acc { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 10px; justify-items: center; }
+  .dz-acc button { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--c); cursor: pointer; padding: 0; }
+  .dz-acc button.on { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--c); }
+  .dz-acc button.on::after { content: ''; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/20px no-repeat; }
+  .dz-acc-wheel { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red) !important; }
+  .dz-acc-wheel span { position: absolute; inset: 9px; border-radius: 50%; background: var(--c); border: 2px solid #fff; }
+  .dz-acc-wheel.on::after { display: none; }
+  .dz-acc-wheel em { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--mute); white-space: nowrap; }
+  .dz-acc { padding-bottom: 12px; }
+  .dz-colors { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* ползунок */
+  .dz-sl { -webkit-appearance: none; appearance: none; width: 100%; height: 30px; margin: 8px 0 0; background: transparent; cursor: pointer; }
+  .dz-sl::-webkit-slider-runnable-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--acc) var(--p), color-mix(in srgb, var(--mute) 25%, transparent) var(--p)); }
+  .dz-sl::-moz-range-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--acc) var(--p), color-mix(in srgb, var(--mute) 25%, transparent) var(--p)); }
+  .dz-sl::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.28); }
+  .dz-sl::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.28); }
+  .dz-mm { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--mute); margin-top: 2px; }
+  /* мини-превью стилей — сеткой */
+  .dz-minis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; justify-items: center; margin-bottom: 14px; }
+  .dz-minis .mini-ph { width: 96px; height: 160px; }
+  .dz-minis .mini.on .mini-ph::after { content: ''; position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--acc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/14px no-repeat; }
+  .dz-minis .mini.on .mini-name { color: var(--acc); }
+  .dz-photo { display: flex; gap: 14px; align-items: center; }
+  .dz-photo .ph-thumb { margin: 0; flex: none; }
+  .dz-photo-btns { display: flex; flex-direction: column; gap: 8px; flex: 1; } .dz-photo-btns .btn { text-align: center; }
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+<script src="/i18n.js"></script>
+<script src="/design.js"></script>
+<script src="/lock.js"></script>
+<script src="/backend.js"></script>
+<script>
+// ---------- общее ----------
+const app = document.getElementById('app');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const DAYS = () => t('days').split(',');
+const DAYS_FULL = () => t('days_full').split(',');
+const MONTHS = () => t('months').split(',');
+const todayWd = () => ((new Date().getDay() + 6) % 7) + 1; // 1 = Пн
+const isAbsent = (v) => /^(н|нб|н\/б|ж|nb|n|abs)$/i.test(v);
+const isNum = (v) => /^\d+([.,]\d+)?$/.test(String(v));
+const num = (v) => Number(String(v).replace(',', '.')) || 0;
+const norm = (s) => String(s).toLowerCase().replace(/[^\p{L}\d]/gu, '');
+const sameSubject = (a, b) => { const x = norm(a), y = norm(b); return x === y || x.startsWith(y) || y.startsWith(x); };
+const pad2 = (n) => String(n).padStart(2, '0');
+
+let S = { route: 'home', stack: [], params: {} };
+const cache = {};
+
+async function api(path, opts) {
+  // В Android-приложении запросы обрабатывает встроенный backend.js, без сервера.
+  if (window.Backend) return window.Backend.api(path, opts);
+  const r = await fetch(path, opts && { ...opts, headers: { 'content-type': 'application/json' } });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(data.error || t('error')); e.code = data.code; throw e; }
+  return data;
+}
+// профиль, расписание и неделя хранятся на устройстве — главный экран открывается сразу, без сети
+const PERSIST = ['profile', 'schedule', 'week'];
+const stored = (key) => { try { return JSON.parse(localStorage.getItem('pc:' + key) || 'null'); } catch { return null; } };
+// разделы, которые показываем сразу из памяти и обновляем в фоне (оценки сюда не входят — они всегда свежие)
+const SWR = (key) => /^(umkd|exams|teachers|distance|eservices|debts|card|accounts|session|f\w+|ds\d+)$/.test(key);
+let netOnly = false; // обновление свайпом: только с сайта, без сохранённого
+const drawKeys = new Set(); // какие данные использует текущий экран
+const revalidating = new Set();
+const keep = (key, v) => { if (PERSIST.includes(key) || SWR(key)) try { localStorage.setItem('pc:' + key, JSON.stringify(v)); } catch { /* память переполнена */ } };
+async function load(key, path, force) {
+  drawKeys.add(key);
+  if (cache[key] && !force) return cache[key];
+  if (!force && !netOnly && SWR(key) && stored(key)) {
+    cache[key] = stored(key);
+    revalidate(key, path);
+    return cache[key];
+  }
+  // один и тот же раздел, запрошенный дважды подряд (предзагрузка + нажатие), качается один раз
+  if (inflight[key] && !force) return inflight[key];
+  const p = inflight[key] = api(path).then((v) => { cache[key] = v; keep(key, v); return v; })
+    .finally(() => { if (inflight[key] === p) delete inflight[key]; });
+  return p;
+}
+const inflight = {};
+// фоновое обновление: если с сайта пришло другое — тихо перерисовываем экран
+function revalidate(key, path) {
+  if (revalidating.has(key)) return;
+  revalidating.add(key); topSpin();
+  api(path).then((fresh) => {
+    const changed = JSON.stringify(fresh) !== JSON.stringify(cache[key]);
+    cache[key] = fresh; keep(key, fresh);
+    if (changed && drawKeys.has(key) && !app.querySelector('.sheet-bg')) draw(true);
+  }).catch(() => {}).finally(() => { revalidating.delete(key); topSpin(); });
+}
+// маленькая крутилка в заголовке, пока раздел обновляется в фоне
+function topSpin() { const el = document.getElementById('topspin'); if (el) el.hidden = ![...revalidating].some((k) => drawKeys.has(k)); }
+const isOffline = (e) => !navigator.onLine || e?.code === 'network';
+const offlineBox = () => `<div class="empty"><div class="ico">📡</div><b>${navigator.onLine ? t('site_down') : t('offline')}</b></div>`;
+const loading = () => `<div class="loadbox"><span class="spin"></span>${t('loading')}</div>`;
+let cacheGeneration = 0;
+const clearCache = () => { cacheGeneration++; maxesPending = null; Object.keys(cache).forEach((k) => delete cache[k]); };
+function toast(text) {
+  const el = document.createElement('div'); el.className = 'toast'; el.textContent = text;
+  app.appendChild(el); setTimeout(() => el.remove(), 2200);
+}
+// Предупреждение сайта; если это про анкеты — кнопка «Пройти в приложении»
+const isSurveyWarn = (w) => /анкет|сауалнам|survey|questionnaire/i.test(w);
+const warnBox = (ws) => [...new Set(ws || [])].map((w) => `<div class="warn">⚠️ <b>${t('site_says')}</b> ${esc(w)}<div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px">${isSurveyWarn(w) && VIEWS.surveys ? `<button class="btn" data-go="surveys">${t('survey_in_app')}</button>` : ''}<a class="btn ghost" href="https://univer.kaznu.kz/${isSurveyWarn(w) ? 'student/rating/' : ''}" target="_blank">${t('open_site')}</a></div></div>`).join('');
+const skel = (n = 4) => Array(n).fill('<div class="skel"></div>').join('');
+const empty = (ico, text) => `<div class="empty"><div class="ico">${ico}</div>${text}</div>`;
+// «дд.мм» отметки журнала -> Date (сентябрь–декабрь — год начала учебного года)
+const markDate = (dm, yearStart) => { const [d, m] = dm.split('.').map(Number); return new Date(m >= 8 ? yearStart : yearStart + 1, m - 1, d); };
+const letterClass = (l) => /^A|^B/.test(l) ? '' : /^C|^D/.test(l) ? 'mid' : 'low';
+
+// ---------- настройки ----------
+const ACCENTS = ['#2f6bff', '#7a3cff', '#e0457b', '#f17c1b', '#1f9d55', '#0aa5b8'];
+const settings = Object.assign({ theme: 'system', accent: ACCENTS[0], size: 'm', lang: 'ru', saveTo: 'app', hideGpa: false, hidePhoto: false, homeHide: [], fileNames: 'full', notify: true, motion: 'full', vibe: 'normal' }, JSON.parse(localStorage.getItem('settings') || '{}'));
+// 0.7.1: по умолчанию названия файлов показываются полностью
+if (!settings.fnFull) { settings.fileNames = 'full'; settings.fnFull = true; }
+// Просмотр стилей в браузере (галерея design.html): ?preset=…&dark=1&acc=… — только на этот раз, без сохранения
+const PREVIEW = new URLSearchParams(location.search);
+const isPreview = PREVIEW.has('preset');
+if (isPreview) {
+  settings.design = { preset: PREVIEW.get('preset') };
+  if (PREVIEW.has('dark')) settings.theme = PREVIEW.get('dark') === '1' ? 'dark' : 'light';
+  if (PREVIEW.get('acc')) settings.accent = '#' + PREVIEW.get('acc').replace('#', '');
+}
+function applySettings() {
+  const dark = settings.theme === 'dark' || (settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.style.setProperty('--acc', settings.accent);
+  applyDesign(dark); // стиль, фон, карточки, меню, иконки (design.js)
+  document.documentElement.style.setProperty('--fs', { s: '14px', m: '15px', l: '17px' }[settings.size]);
+  document.documentElement.lang = { kz: 'kk', ru: 'ru', en: 'en' }[settings.lang];
+  // множитель длительностей CSS-анимаций (окна, меню, переключатели) — тот же, что у переходов в JS
+  document.documentElement.style.setProperty('--m', String({ full: 1, fast: 0.6, off: 0 }[settings.motion] ?? 1));
+  document.documentElement.dataset.motion = settings.motion;
+  if (!isPreview) localStorage.setItem('settings', JSON.stringify(settings));
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySettings);
+applySettings();
+
+// ---------- вход ----------
+function loginView(msg = '') {
+  app.innerHTML = `<div class="login">
+    <div class="mini-seg" style="align-self:flex-end;margin-bottom:10px">${[['kz', 'Қаз'], ['ru', 'Рус'], ['en', 'Eng']].map(([v, l]) => `<button data-lang="${v}" class="${settings.lang === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="logo">🎓</div>
+    <h1 style="margin:0 0 4px">Open Univer</h1><div class="mute" style="margin-bottom:18px">${t('login_sub')}</div>
+    ${msg ? `<div class="err">${esc(msg)}</div>` : ''}
+    <input class="field" id="lg" placeholder="${t('login')}" autocomplete="off" autocapitalize="off">
+    <input class="field secret" id="pw" placeholder="${t('password')}" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label class="mute" style="display:flex;gap:6px;align-items:center;margin:4px 2px 12px"><input type="checkbox" id="show"> ${t('show_pw')}</label>
+    <label class="agree"><input type="checkbox" id="agree" ${settings.termsAccepted ? 'checked' : ''}><span>${t('terms_agree')} <a href="#" id="terms">${t('terms_link')}</a></span></label>
+    <button class="btn wide" id="go" ${settings.termsAccepted ? '' : 'disabled'}>${t('save_login')}</button>
+    <div class="privacy"><span>🔒</span><span>${t('privacy_login')}</span></div>
+  </div>`;
+  const lg = document.getElementById('lg'), pw = document.getElementById('pw');
+  api('/api/saved').then((c) => { if (c?.login && !lg.value && !pw.value) { lg.value = c.login; pw.value = c.password || ''; } }).catch(() => {});
+  const go = async () => {
+    const b = document.getElementById('go'); b.disabled = true; b.textContent = t('logging_in');
+    try {
+      const p = await api('/api/login', { method: 'POST', body: JSON.stringify({ login: lg.value.trim(), password: pw.value, lang: settings.lang }) });
+      clearCache(); cache.profile = p;
+      S = { route: 'home', stack: [], params: {} }; render();
+    } catch (e) { const l = lg.value, p = pw.value; loginView(isOffline(e) ? (navigator.onLine ? t('site_down') : t('offline')) : e.message); document.getElementById('lg').value = l; document.getElementById('pw').value = p; }
+  };
+  document.getElementById('go').onclick = go;
+  document.getElementById('show').onchange = (e) => pw.classList.toggle('secret', !e.target.checked);
+  document.getElementById('agree').onchange = (e) => { settings.termsAccepted = e.target.checked; applySettings(); document.getElementById('go').disabled = !e.target.checked; };
+  document.getElementById('terms').onclick = (e) => { e.preventDefault(); termsSheet(); };
+  pw.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  app.querySelectorAll('[data-lang]').forEach((b) => (b.onclick = () => { settings.lang = b.dataset.lang; applySettings(); loginView(msg); }));
+}
+
+// ---------- каркас ----------
+const TABS = [['home', '🏠'], ['schedule', '📅'], ['grades', '📊'], ['umkd', '📁'], ['more', '☰']];
+// разделы главного экрана (их можно скрыть в настройках; во вкладке «Прочее» они есть всегда)
+const QUICK = [['exams', '📝'], ['calendar', '🗓️'], ['calc', '🧮'], ['teachers', '👩‍🏫'], ['distance', '💻'], ['eservices', '🧾'], ['debts', '💸'], ['downloads', '⬇️']];
+const shown = (k) => !settings.homeHide.includes(k);
+// порядок плиток на главной: сохранённый, новые разделы — в конце
+function orderedQuick() {
+  const o = settings.homeOrder || [], pos = (k) => { const i = o.indexOf(k); return i < 0 ? 1000 + QUICK.findIndex(([q]) => q === k) : i; };
+  return [...QUICK].sort((a, b) => pos(a[0]) - pos(b[0]));
+}
+const saveSettings = () => { if (!isPreview) localStorage.setItem('settings', JSON.stringify(settings)); };
+
+// ---------- перестановка плиток главной ----------
+// Зажать плитку → она приподнимается и едет за пальцем; соседи плавно расступаются (FLIP),
+// при отпускании плитка «садится» в своё место с лёгкой пружинкой. Порядок запоминается.
+let homeDrag = null;
+function quickReorder(grid) {
+  if (!grid) return;
+  let press = null, dropAt = 0;
+  const cancelPress = () => { if (press) { clearTimeout(press.timer); press = null; } };
+  grid.oncontextmenu = (e) => e.preventDefault();
+  grid.onpointerdown = (e) => {
+    const b = e.target.closest('button[data-go]'); if (!b || e.button > 0 || homeDrag) return;
+    const p = { b, id: e.pointerId, x: e.clientX, y: e.clientY };
+    p.timer = setTimeout(() => { if (press === p) lift(p, press.x, press.y); }, 360);
+    press = p; b.classList.add('pressing');
+    setTimeout(() => b.classList.remove('pressing'), 360);
+  };
+  grid.onpointermove = (e) => {
+    if (press && !homeDrag) { press.x = e.clientX; press.y = e.clientY; if (Math.hypot(e.clientX - press.b._x0, e.clientY - press.b._y0) > 9) { press.b.classList.remove('pressing'); cancelPress(); } }
+  };
+  grid.addEventListener('pointerdown', (e) => { const b = e.target.closest('button[data-go]'); if (b) { b._x0 = e.clientX; b._y0 = e.clientY; } }, true);
+  grid.onpointerup = grid.onpointercancel = () => { if (!homeDrag) { press?.b.classList.remove('pressing'); cancelPress(); } };
+  // пока тащим, страница не прокручивается и не листается
+  grid.addEventListener('touchmove', (e) => { if (homeDrag && e.cancelable) e.preventDefault(); }, { passive: false });
+  // нажатие, которое стало перетаскиванием, раздел не открывает
+  grid.addEventListener('click', (e) => { if (homeDrag || Date.now() - dropAt < 450) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+  function lift(p, x, y) {
+    press = null;
+    const b = p.b; if (!b.isConnected) return;
+    const tiles = () => [...grid.querySelectorAll('button[data-go]')];
+    const slots = tiles().map((el) => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }));
+    const d = homeDrag = { b, sx: x, sy: y, ox: b.offsetLeft, oy: b.offsetTop, x, y, idx: tiles().indexOf(b) };
+    b.classList.remove('pressing'); grid.classList.add('arranging'); b.classList.add('lifted');
+    haptic('hold');
+    const place = () => { b.style.transform = `translate(${d.x - d.sx + d.ox - b.offsetLeft}px, ${d.y - d.sy + d.oy - b.offsetTop}px) scale(1.1)`; };
+    place();
+    const move = (e) => {
+      if (e.pointerId !== p.id) return;
+      d.x = e.clientX; d.y = e.clientY;
+      // центр плитки под пальцем → ближайшая ячейка сетки
+      const gr = grid.getBoundingClientRect();
+      const cx = d.x - gr.left - (d.sx - (gr.left + d.ox)) + slots[0].w / 2, cy = d.y - gr.top - (d.sy - (gr.top + d.oy)) + slots[0].h / 2;
+      let best = d.idx, bd = Infinity;
+      slots.forEach((s, i) => { const dd = Math.hypot(s.x + s.w / 2 - cx, s.y + s.h / 2 - cy); if (dd < bd) { bd = dd; best = i; } });
+      if (best !== d.idx && bd < slots[0].w * 0.6) {
+        // FLIP: запомнить, где стояли соседи → переставить → анимировать с прежнего места
+        const others = tiles().filter((el) => el !== b), was = new Map(others.map((el) => [el, [el.offsetLeft, el.offsetTop]]));
+        const list = tiles(); list.splice(d.idx, 1); list.splice(best, 0, b);
+        list.forEach((el) => grid.appendChild(el));
+        d.idx = best;
+        others.forEach((el) => {
+          const [px, py] = was.get(el), dx = px - el.offsetLeft, dy = py - el.offsetTop;
+          if (!dx && !dy) return;
+          el.getAnimations().forEach((a) => a.cancel());
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: ms('snap') * 1.3, easing: EASE });
+        });
+        haptic('select');
+      }
+      place();
+    };
+    const up = (e) => {
+      if (e.pointerId !== p.id) return;
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+      const from = b.style.transform;
+      b.style.transform = '';
+      b.classList.remove('lifted'); b.classList.add('landing');
+      const done = () => { b.classList.remove('landing'); grid.classList.remove('arranging'); };
+      const a = b.animate([{ transform: from }, { transform: 'none' }], { duration: Math.max(1, ms('snap') * 1.5), easing: 'cubic-bezier(.3,1.35,.5,1)' });
+      a.onfinish = done; setTimeout(done, ms('snap') * 1.5 + 120);
+      homeDrag = null; dropAt = Date.now();
+      // новый порядок: видимые — как стоят, скрытые остаются на своих местах в общем списке
+      const vis = tiles().map((el) => el.dataset.go), all = orderedQuick().map(([k]) => k);
+      let vi = 0; settings.homeOrder = all.map((k) => (vis.includes(k) ? vis[vi++] : k));
+      saveSettings(); haptic('toggle');
+    };
+    addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  }
+}
+const isTabRoute = (r) => TABS.some(([k]) => k === r);
+// ---------- навигация: экраны-слои, переходы и жесты ----------
+// Каждый экран — отдельный слой .page. Экраны, открытые «вглубь», остаются в памяти вместе с прокруткой,
+// поэтому «назад» мгновенный. У спящих слоёв id убираются, чтобы не путаться с текущим экраном.
+// Анимируются только transform и opacity — их телефон рисует видеокартой, без перерасчёта страницы.
+let shell = null;
+let dlVersion = 0; // растёт после скачивания/удаления файлов: спящий экран со списком файлов обновится при возврате
+// ---------- система движения ----------
+// Все длительности — здесь, в одном месте; настройка «Анимации» умножает их (плавные ×1, быстрые ×0.6, выкл ×0).
+// Правила: вглубь — справа налево, назад — слева направо, соседние вкладки — сдвиг в сторону вкладки,
+// листание — вслед за пальцем; что палец отпустил, доезжает с замедлением (EASE), без пружин и отскоков.
+const MOTION = { full: 1, fast: 0.6, off: 0 };
+const DUR = {
+  push: 320,   // открыть экран вглубь
+  back: 280,   // вернуться (кнопкой)
+  fling: 220,  // доехать после свайпа «назад»
+  tab: 220,    // сменить вкладку
+  page: 300,   // листалка кнопкой (день, месяц, «Текущие/Сессия»)
+  snap: 200,   // вернуть на место, если свайп короткий
+  sheet: 240,  // окно снизу
+};
+const ms = (k) => Math.round((DUR[k] ?? k) * (MOTION[settings.motion] ?? 1));
+const EASE = 'cubic-bezier(.22,.8,.24,1)';    // замедление к концу: всё, что «доезжает»
+const EASE_IO = 'cubic-bezier(.4,0,.2,1)';    // плавно с обеих сторон: смена вкладок
+const sleepIds = (el) => el.querySelectorAll('[id]').forEach((x) => { x.dataset.sid = x.id; x.removeAttribute('id'); });
+const wakeIds = (el) => el.querySelectorAll('[data-sid]').forEach((x) => { x.id = x.dataset.sid; x.removeAttribute('data-sid'); });
+function ensureShell() {
+  if (shell && shell.pages.isConnected) return shell;
+  app.innerHTML = `<div class="pages"></div><nav class="tabs"><span class="ind"></span>${TABS.map(([k]) => `<button data-tab="${k}"><span class="i">${ic(k)}</span>${t('t_' + k)}</button>`).join('')}</nav>`;
+  shell = { pages: app.querySelector('.pages'), nav: app.querySelector('nav.tabs') };
+  shell.nav.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { if (b.dataset.tab !== S.route || S.stack.length) haptic('nav'); tab(b.dataset.tab); }));
+  S.stack = []; S.page = null;
+  gestures(shell.pages);
+  return shell;
+}
+// подписи после смены языка — без пересборки экранов
+function relabel() {
+  if (!shell) return;
+  shell.nav.querySelectorAll('[data-tab]').forEach((b) => { b.lastChild.textContent = t('t_' + b.dataset.tab); });
+  for (const x of S.stack) if (!x.params?.title) { const h = x.page.querySelector('.top h1'); if (h) h.textContent = t('t_' + x.route); }
+}
+function updateNav() {
+  const root = isTabRoute(S.route) ? S.route : S.stack[0]?.route;
+  const idx = TABS.findIndex(([k]) => k === root);
+  shell.nav.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === root));
+  const ind = shell.nav.querySelector('.ind');
+  ind.style.opacity = idx < 0 ? '0' : '1';
+  if (idx >= 0) ind.style.transform = `translateX(${idx * 100}%)`;
+}
+function makePage(route, params) {
+  const isTab = isTabRoute(route);
+  const title = params?.title ?? (route === 'home' ? '' : t('t_' + route));
+  const el = document.createElement('section');
+  el.className = 'page';
+  el.innerHTML = `${title ? `<div class="top">${!isTab ? '<button class="back" data-back>‹</button>' : ''}<h1 class="grow ellip">${esc(title)}</h1></div>` : ''}
+    <div class="scroll" id="main"><div class="ptr" id="ptr"><i></i></div><div id="body">${route === 'home' ? '' : skel()}</div></div>`;
+  el._route = route; el._params = params || {};
+  el._body = el.querySelector('#body'); el._main = el.querySelector('.scroll');
+  el.querySelector('[data-back]')?.addEventListener('click', () => back());
+  pullToRefresh(el._main);
+  return el;
+}
+// данные обычно уже в памяти: ждём их совсем чуть-чуть, чтобы экран въехал сразу заполненным, без скелетона
+const settle = (p, ms = 150) => Promise.race([p, new Promise((r) => setTimeout(r, ms))]);
+let anims = []; // идущие переходы; новый переход сначала мгновенно завершает предыдущий
+function finishAnims() { const a = anims; anims = []; a.forEach((f) => f()); }
+// сдвинуть слои: [[элемент, откуда %, куда %]]; done — когда доехали (или переход завершили досрочно)
+function slide(items, ms, done) {
+  let over = false;
+  const running = items.map(([el, from, to]) => el.animate([{ transform: `translate3d(${from}%,0,0)` }, { transform: `translate3d(${to}%,0,0)` }], { duration: ms, easing: EASE, fill: 'forwards' }));
+  const end = () => { if (over) return; over = true; anims = anims.filter((f) => f !== end); running.forEach((a) => a.cancel()); done?.(); };
+  anims.push(end);
+  running[0].onfinish = end;
+  setTimeout(end, ms + 120); // запасной таймер: если событие конца анимации не придёт (приложение свернули), переход всё равно завершится
+  return end;
+}
+function go(route, params = {}) {
+  if (route === S.route && JSON.stringify(params) === JSON.stringify(S.params || {})) return; // двойное нажатие
+  if (!S.page || !shell?.pages.isConnected) { S.route = route; S.params = params; return render(); }
+  finishAnims(); selClear();
+  const old = S.page; sleepIds(old);
+  S.stack.push({ route: S.route, params: S.params, page: old });
+  S.route = route; S.params = params;
+  const page = makePage(route, params);
+  page.style.transform = 'translate3d(100%,0,0)';
+  shell.pages.appendChild(page); S.page = page; updateNav();
+  settle(draw(false, page)).then(() => {
+    if (S.page !== page) return;
+    page.style.transform = ''; page.classList.add('front');
+    slide([[page, 100, 0], [old, 0, -28]], ms('push'), () => { page.classList.remove('front'); if (S.page !== old) old.classList.add('asleep'); });
+  });
+}
+// fromPx — откуда продолжить, если экран уже тянут пальцем
+function back(fromPx = 0) {
+  if (!S.stack.length) return;
+  finishAnims(); selClear();
+  const cur = S.page, prev = S.stack.pop();
+  sleepIds(cur); wakeIds(prev.page);
+  S.route = prev.route; S.params = prev.params; S.page = prev.page; updateNav();
+  prev.page.classList.remove('asleep'); cur.classList.add('front');
+  const pct = (fromPx / (cur.offsetWidth || 1)) * 100;
+  slide([[cur, pct, 100], [prev.page, -28 + pct * 0.28, 0]], ms(fromPx ? 'fling' : 'back'), () => {
+    cur.remove();
+    if (S.page === prev.page) draw(true); // тихо обновить: пока экран спал, данные могли измениться
+  });
+}
+function tab(route) {
+  if (route === 'grades') delete cache.grades; // текущие оценки всегда свежие; зачётка — из памяти с фоновым обновлением
+  ensureShell(); finishAnims(); selClear();
+  if (route === S.route && !S.stack.length && S.page) { S.page._main.scrollTo({ top: 0, behavior: 'smooth' }); if (route === 'grades') draw(true); return; }
+  // направление — по порядку вкладок в меню: правее — новый экран выходит справа, левее — слева
+  const tabIdx = (r) => TABS.findIndex(([k]) => k === r);
+  const from = tabIdx(isTabRoute(S.route) ? S.route : S.stack[0]?.route), dir = Math.sign(tabIdx(route) - from) || 1;
+  const olds = [...shell.pages.children];
+  olds.forEach(sleepIds);
+  S.stack = []; S.route = route; S.params = {};
+  const page = makePage(route, {});
+  page.style.opacity = '0';
+  shell.pages.appendChild(page); S.page = page; updateNav();
+  settle(draw(false, page), 120).then(() => {
+    if (S.page !== page) return;
+    page.style.opacity = '';
+    const d = ms('tab');
+    if (!d) { olds.forEach((p) => p.remove()); return; }
+    page.classList.add('front');
+    const a = page.animate([{ opacity: 0, transform: `translate3d(${dir * 7}%,0,0)` }, { opacity: 1, transform: 'none' }], { duration: d, easing: EASE_IO });
+    olds.forEach((p) => p.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translate3d(${-dir * 4}%,0,0)` }], { duration: d, easing: EASE_IO, fill: 'forwards' }));
+    let over = false;
+    const end = () => { if (over) return; over = true; anims = anims.filter((f) => f !== end); a.cancel(); olds.forEach((p) => p.remove()); page.classList.remove('front'); };
+    anims.push(end); a.onfinish = end; setTimeout(end, d + 120);
+  });
+}
+// заменить текущий экран без анимации (вход, смена настроек, после e-услуг)
+async function render() {
+  ensureShell(); finishAnims(); selClear();
+  const old = S.page; if (old) sleepIds(old);
+  const page = makePage(S.route, S.params);
+  if (old) page.style.visibility = 'hidden';
+  shell.pages.appendChild(page); S.page = page; updateNav();
+  const p = draw(false, page);
+  await settle(p, 200);
+  if (old && old !== S.page) old.remove();
+  page.style.visibility = '';
+  await p;
+}
+async function draw(quiet, page = S.page) {
+  if (!page) return;
+  const body = page._body, route = page._route, params = page._params || {};
+  const seq = page._seq = (page._seq || 0) + 1;
+  if (!quiet) drawKeys.clear();
+  try {
+    const html = await VIEWS[route](params);
+    if (seq !== page._seq || !page.isConnected) return; // пока грузилось, экран уже сменился
+    if (html === page._html && page._dl === dlVersion) return; // ничего не изменилось — не трогаем экран
+    page._html = html; page._dl = dlVersion;
+    body.innerHTML = html;
+    if (page === S.page && SEL.size) selUpdate();
+    bindCommon(body);
+    await BIND[route]?.(body, params);
+  } catch (e) {
+    if (['not_logged_in', 'session_expired'].includes(e.code)) return loginView(e.code === 'session_expired' ? t('expired') : '');
+    if (seq !== page._seq || !page.isConnected) return;
+    if (quiet && page._html) return; // фоновое обновление не затирает уже показанные данные ошибкой
+    page._html = null;
+    body.innerHTML = (isOffline(e) ? offlineBox() : `<div class="err">${esc(e.message)}</div>`) + `<button class="btn ghost wide" data-retry>${t('retry')}</button>`;
+    body.querySelector('[data-retry]').onclick = () => draw(false, page);
+  }
+}
+// экран поменялся на месте (листалка, выбор дня) — следующая тихая перерисовка не должна считать его прежним
+const touched = () => { if (S.page) S.page._html = null; };
+
+// ---------- жесты ----------
+// Горизонтальный свайп: внутри листалки (data-pager) — листает её, на пустом месте слева направо — «назад».
+const canSwipeBack = () => !SEL.size && !app.querySelector('.sheet-bg') && (S.stack.length > 0 || (isTabRoute(S.route) && S.route !== 'home'));
+// inSheet — внутри окна снизу: только листалка, без «назад»
+function gestures(root, inSheet = false) {
+  let g = null;
+  root.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) { g = null; return; }
+    const p = e.touches[0];
+    g = { x: p.clientX, y: p.clientY, dx: 0, axis: null, mode: null, target: e.target, lx: p.clientX, lt: performance.now(), v: 0 };
+  }, { passive: true });
+  root.addEventListener('touchmove', (e) => {
+    if (homeDrag) { g = null; return; }
+    if (!g) return;
+    const p = e.touches[0], dx = p.clientX - g.x, dy = p.clientY - g.y;
+    if (!g.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      g.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? 'x' : 'y';
+      if (g.axis === 'x') {
+        const tg = g.target, chips = tg.closest('.chips');
+        if ((SEL.size && !inSheet) || tg.closest('input, textarea, select, [data-noswipe]') || (chips && chips.scrollWidth > chips.clientWidth + 2)) g.mode = null;
+        else {
+          // листалка, если ей есть куда листать; иначе свайп вправо — «назад»
+          const pg = tg.closest('[data-pager]'), P = pg?._pager && (inSheet ? root.contains(pg) : S.page?.contains(pg)) ? pg._pager : null;
+          if (inSheet) g.mode = P;
+          else g.mode = P && (P.can(dx < 0 ? 1 : -1) || !(dx > 0 && canSwipeBack())) ? P : dx > 0 && canSwipeBack() ? 'back' : null;
+        }
+        if (g.mode === 'back') backStart(); else g.mode?.start();
+        g.x = p.clientX; // без рывка на величину порога
+      }
+    }
+    if (g.axis !== 'x' || !g.mode) return;
+    if (e.cancelable) e.preventDefault();
+    const now = performance.now();
+    g.v = (p.clientX - g.lx) / Math.max(1, now - g.lt); g.lx = p.clientX; g.lt = now;
+    g.dx = p.clientX - g.x;
+    if (g.mode === 'back') backMove(g.dx); else g.mode.drag(g.dx);
+  }, { passive: false });
+  const end = () => {
+    if (!g) return;
+    const { mode, dx, v } = g; g = null;
+    if (!mode) return;
+    if (mode === 'back') backEnd(dx, v); else mode.release(dx, v);
+  };
+  root.addEventListener('touchend', end);
+  root.addEventListener('touchcancel', end);
+}
+let bd = null; // экран, который сейчас тянут «назад»
+function backStart() {
+  finishAnims();
+  const cur = S.page;
+  let prev = S.stack[S.stack.length - 1]?.page || null, root = false;
+  if (!prev) { // корневая вкладка: под ней сразу рисуем главную (из памяти), чтобы тянуть было что открывать
+    root = true; prev = makePage('home', {});
+    prev.style.transform = 'translate3d(-28%,0,0)';
+    shell.pages.insertBefore(prev, cur);
+    draw(true, prev);
+  }
+  bd = { cur, prev, root, w: cur.offsetWidth || 1 };
+  cur.classList.add('front');
+  prev.classList.remove('asleep');
+}
+function backMove(dx) {
+  if (!bd) return;
+  const x = Math.max(0, dx);
+  bd.cur.style.transform = `translate3d(${x}px,0,0)`;
+  if (bd.prev) bd.prev.style.transform = `translate3d(${-0.28 * (bd.w - x)}px,0,0)`;
+}
+function backEnd(dx, v) {
+  if (!bd) return;
+  const { cur, prev, root, w } = bd; bd = null;
+  const x = Math.max(0, dx), pct = (x / w) * 100;
+  cur.style.transform = ''; prev.style.transform = '';
+  const done = x > w * 0.3 || (v > 0.35 && x > 24);
+  if (!done) {
+    slide([[cur, pct, 0], [prev, -28 + pct * 0.28, -28]], ms('snap'), () => {
+      cur.classList.remove('front');
+      if (root) prev.remove(); else if (S.page === cur) prev.classList.add('asleep');
+    });
+    return;
+  }
+  haptic('back');
+  if (!root) return back(x);
+  // корневая вкладка уезжает вправо, под ней уже готовая главная
+  selClear(); sleepIds(cur);
+  S.stack = []; S.route = 'home'; S.params = {}; S.page = prev; updateNav();
+  slide([[cur, pct, 100], [prev, -28 + pct * 0.28, 0]], ms('fling'), () => {
+    [...shell.pages.children].forEach((p) => { if (p !== prev) p.remove(); });
+    if (S.page === prev) { prev._html = null; draw(true); } // главная стала текущей — догружаем её свежие данные
+  });
+}
+
+// Листалка: содержимое едет за пальцем, соседняя страница уже стоит рядом; отпустил — доезжает и подменяется.
+// region — где ловим свайп, track (.pg) — что двигаем; o.build(dir) → html | Promise<html> | null (дальше некуда),
+// o.commit(dir, el) — обновить состояние, o.progress(доля, dir, сброс) — например, двигать подсветку дня.
+function pager(region, track, o) {
+  const GAP = 24;
+  const P = {};
+  region.dataset.pager = '1'; region._pager = P;
+  let nb = null, ndir = 0, anim = null;
+  const W = () => (track.offsetWidth || region.offsetWidth) + GAP;
+  const cur = () => track.querySelector(':scope > .pg-cur');
+  const fill = (el, r) => {
+    if (typeof r === 'string') { el.innerHTML = r; o.bind?.(el); return; }
+    el.innerHTML = skel(3);
+    Promise.resolve(r).then((h) => { if (el.isConnected) { el.innerHTML = h; o.bind?.(el); } }).catch(() => { if (el.isConnected) el.innerHTML = offlineBox(); });
+  };
+  const place = (dir) => {
+    if (nb && ndir === dir) return true;
+    nb?.remove(); nb = null; ndir = 0;
+    const r = o.build(dir); if (r == null) return false;
+    nb = document.createElement('div'); nb.className = 'pg-nb';
+    nb.style.transform = `translate3d(${dir * W()}px,0,0)`;
+    track.appendChild(nb); ndir = dir; fill(nb, r);
+    return true;
+  };
+  const clear = () => { nb?.remove(); nb = null; ndir = 0; track.style.transform = ''; };
+  const commit = (dir) => {
+    const old = cur(), el = nb; nb = null; ndir = 0;
+    track.style.transform = '';
+    old?.remove(); el.className = 'pg-cur'; el.style.transform = '';
+    touched();
+    o.commit(dir, el);
+  };
+  const animate = (from, to, ms, done) => {
+    if (!ms) { anim = null; return done(); }
+    track.style.transform = `translate3d(${to}px,0,0)`;
+    const a = track.animate([{ transform: `translate3d(${from}px,0,0)` }, { transform: `translate3d(${to}px,0,0)` }], { duration: ms, easing: EASE });
+    let over = false;
+    const end = () => { if (over) return; over = true; anim = null; a.cancel(); done(); };
+    a.onfinish = end; anim = end;
+    setTimeout(end, ms + 120);
+  };
+  P.stop = () => anim?.();
+  P.can = (dir) => { P.stop(); return place(dir); };
+  P.start = () => P.stop();
+  P.drag = (dx) => {
+    const dir = dx < 0 ? 1 : -1;
+    const ok = dx !== 0 && place(dir);
+    const x = ok ? dx : dx * 0.25; // дальше некуда — пружинит
+    track.style.transform = `translate3d(${x}px,0,0)`;
+    o.progress?.(ok ? Math.abs(x) / W() : 0, dir);
+  };
+  P.release = (dx, v) => {
+    const dir = dx < 0 ? 1 : -1, w = W();
+    const ok = nb && ndir === dir;
+    if (ok && (Math.abs(dx) > w * 0.2 || (Math.abs(v) > 0.35 && Math.abs(dx) > 20))) {
+      // чем дальше уже протянул пальцем, тем быстрее доезжает остаток
+      const d = Math.round(Math.max(140, Math.min(300, ((w - Math.abs(dx)) / w) * 320)) * (MOTION[settings.motion] ?? 1));
+      o.settle?.(dir, true, d); // подсветка доезжает одновременно со страницей, а не после неё
+      animate(dx, -dir * w, d, () => commit(dir));
+    } else {
+      o.settle?.(dir, false, ms('snap'));
+      animate(ok ? dx : dx * 0.25, 0, ms('snap'), clear);
+    }
+  };
+  // листнуть кнопкой (стрелки, дни недели, «Текущие/Сессия»)
+  P.go = (dir) => { P.stop(); nb?.remove(); nb = null; ndir = 0; if (!place(dir)) return; o.settle?.(dir, true, ms('page')); animate(0, -dir * W(), ms('page'), () => commit(dir)); };
+  return P;
+}
+
+// Потянуть вниз, чтобы обновить: весь экран плавно едет вниз, крутилка крутится, пока грузятся данные.
+function pullToRefresh(main) {
+  const ptr = main.querySelector('#ptr'), body = main.querySelector('#body');
+  let y0 = null, x0 = 0, h = 0, mode = null, busy = false;
+  const put = (v, anim) => {
+    const d = ms(300), tr = anim && d ? `transform ${d}ms ${EASE}, opacity ${d}ms` : 'none';
+    body.style.transition = tr; ptr.style.transition = tr;
+    body.style.transform = v ? `translateY(${v}px)` : '';
+    ptr.style.transform = `translateY(${v - 44}px) rotate(${v * 4}deg)`;
+    ptr.style.opacity = String(Math.min(1, v / 50));
+  };
+  const start = (x, y) => { if (busy || main.scrollTop > 0) return; y0 = y; x0 = x; h = 0; mode = null; };
+  const move = (x, y, e) => {
+    if (y0 === null) return;
+    const dy = y - y0, dx = x - x0;
+    if (mode === null && (Math.abs(dy) > 8 || Math.abs(dx) > 8)) mode = dy > 0 && Math.abs(dy) > Math.abs(dx) && main.scrollTop <= 0 ? 'pull' : 'no';
+    if (mode !== 'pull') return;
+    if (e.cancelable) e.preventDefault();
+    const was = h;
+    h = Math.min(Math.max(0, dy) * 0.45, 110);
+    if (was < 64 && h >= 64) haptic('edge'); // дотянул: отпустишь — обновится
+    put(h, false);
+  };
+  const end = async () => {
+    if (y0 === null) return;
+    y0 = null;
+    if (mode !== 'pull') return;
+    if (h < 64) return put(0, true);
+    busy = true; put(60, true); ptr.classList.add('busy');
+    clearCache(); netOnly = true;
+    await api('/api/fresh', { method: 'POST' }).catch(() => {});
+    await draw();
+    netOnly = false;
+    ptr.classList.remove('busy'); put(0, true);
+    busy = false;
+  };
+  main.addEventListener('touchstart', (e) => start(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  main.addEventListener('touchmove', (e) => move(e.touches[0].clientX, e.touches[0].clientY, e), { passive: false });
+  main.addEventListener('touchend', end);
+  main.addEventListener('mousedown', (e) => start(e.clientX, e.clientY));
+  window.onmousemove = (e) => move(e.clientX, e.clientY, e);
+  window.onmouseup = end;
+}
+
+// ---------- экраны ----------
+const roomOf = (l) => [l.building, l.room].filter(Boolean).join(' | ');
+function lessonCard(l, state = '') {
+  const [from, to] = l.time.split('-');
+  return `<div class="card lesson ${state}"><div class="t">${esc(from)}<small>${esc(to)}</small></div><div class="bar"></div>
+    <div class="grow"><div class="row" style="align-items:flex-start"><h3 class="grow">${esc(l.subject)}</h3>${roomOf(l) ? `<span class="room">${esc(roomOf(l))}</span>` : ''}</div>
+    <div class="meta">${l.kind ? `<span class="pill">${esc(l.kind)}</span>` : ''}<span>👤 ${esc(l.teacher)}</span></div></div></div>`;
+}
+const toMin = (x) => { const [h, m] = x.trim().split(':').map(Number); return h * 60 + m; };
+const hhmm = (m) => pad2(Math.floor(m / 60)) + ':' + pad2(m % 60);
+// пары дня + серые «окна» между ними (начало окна — ближайший час после конца пары)
+function dayList(list, isToday) {
+  let out = '', prevEnd = null;
+  for (const l of list) {
+    const [a, b] = l.time.split('-').map(toMin);
+    if (prevEnd !== null) {
+      const from = Math.ceil(prevEnd / 60) * 60;
+      if (a - from >= 30) out += `<div class="card gap"><span>☕</span><b>${hhmm(from)} – ${hhmm(a)}</b><span class="mute">${t('window')}</span></div>`;
+    }
+    out += lessonCard(l, isToday ? lessonState(l) : '');
+    prevEnd = Math.max(prevEnd ?? 0, b);
+  }
+  return out;
+}
+function heroHtml(p, wk, sch) {
+  const hour = new Date().getHours();
+  const todayN = sch ? sch.lessons.filter((l) => l.weekday === todayWd()).length : '…';
+  const gpa = p ? (settings.hideGpa ? `<b data-reveal="${esc(p.gpa || '—')}" style="cursor:pointer">***</b>` : `<b>${esc(p.gpa || '—')}</b>`) : '<b><span class="spin w" style="width:16px;height:16px"></span></b>';
+  return `<div class="hero"><button class="hbtn" data-go="card">${ic('card')} ${t('profile_btn')}</button>
+    <div class="sub">${t(hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening')},</div>
+    <div class="name" style="padding-right:84px">${p ? esc(p.name) : '<span class="spin w"></span>'}</div>
+    <div class="sub">${esc(p?.specialty || '')}</div>
+    ${wk ? `<div class="week">${ic('week')} ${wk.week ? `${t('week_n')}: ${wk.week}${wk.total ? ' ' + t('of_weeks') + ' ' + wk.total : ''}` : t('no_week')}</div>` : ''}
+    <div class="stats"><div class="stat">${gpa}<span>GPA</span></div><div class="stat"><b>${esc(p?.course || '—')}</b><span>${t('course')}</span></div><div class="stat"><b>${todayN}</b><span>${t('lessons_today')}</span></div></div>
+  </div>`;
+}
+function todayHtml(sch) {
+  const wd = todayWd();
+  if (!sch) return `<div class="sec">${t('today')} · ${DAYS_FULL()[wd - 1]}</div><div class="card">${loading()}</div>`;
+  const today = sch.lessons.filter((l) => l.weekday === wd).sort((a, b) => a.time.localeCompare(b.time));
+  const active = today.filter((l) => lessonState(l) !== 'past'), past = today.filter((l) => lessonState(l) === 'past');
+  const next = active[0];
+  return `<div class="sec">${t('today')} · ${DAYS_FULL()[wd - 1]}</div>
+    ${next ? `<div class="mute" style="margin:-4px 4px 8px">${lessonState(next) === 'now' ? '🟢 ' + t('now_lesson') : `⏭ ${t('next_at')} ${esc(next.time.split('-')[0])}`}</div>` : ''}
+    ${!today.length ? `<div class="card empty"><div class="ico">🎉</div>${t('no_lessons_today')}</div>`
+      : (active.length ? dayList(active, true) : `<div class="card empty"><div class="ico">✅</div>${t('lessons_over')}</div>`) +
+        (past.length ? `<div class="past-sep">${t('lessons_past')}</div>` + past.map((l) => lessonCard(l, 'past')).join('') : '')}`;
+}
+// раз в минуту пересчитываем, какие пары уже прошли
+setInterval(() => {
+  const el = S.page?.querySelector('#today');
+  if (S.route === 'home' && el) { const sch = cache.schedule ?? stored('schedule'); if (sch) setIfChanged(el, todayHtml(sch)); }
+}, 60000);
+// заменить содержимое, только если HTML правда другой (не пересоздавать кнопки под пальцем)
+let homeFirst = {};
+// Тактильный отклик. kind — что произошло, у каждого свой рисунок (см. TactilePlugin.java):
+//   page — перелистнул; nav — нижнее меню; back — свайп «назад»; edge — дотянул до порога;
+//   select — отметил файл / скопировал; toggle — переключатель в настройках; hold — долгое нажатие;
+//   success — скачано; delete — удалено; error — не получилось.
+// Сила — из настройки «Вибрация»; не чаще раза в 40 мс, чтобы быстрые действия не сливались в гул.
+const VIBE = { off: 0, light: 0.45, normal: 0.75, strong: 1.15 };
+let hapticAt = 0;
+function haptic(kind = 'toggle', level = VIBE[settings.vibe] ?? VIBE.normal) {
+  if (!level) return;
+  const now = performance.now(); if (now - hapticAt < 40) return; hapticAt = now;
+  if (window.Backend?.haptic) return window.Backend.haptic(kind, level);
+  // в браузере — очень короткий импульс, если устройство умеет
+  navigator.vibrate?.({ success: [6, 60, 10], delete: [10, 40, 6], error: [18, 90, 18], hold: 14 }[kind] || 5);
+}
+function setIfChanged(el, html) {
+  if (!el || el._html === html) return false;
+  el._html = html; el.innerHTML = html; return true;
+}
+function lessonState(l) {
+  const now = new Date(); const hm = now.getHours() * 60 + now.getMinutes();
+  const [a, b] = l.time.split('-').map((x) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; });
+  return hm >= b ? 'past' : hm >= a ? 'now' : '';
+}
+// Все отметки из журнала одним списком.
+function allMarks(g) {
+  return g.subjects.flatMap((s) => (s.parts || []).flatMap((p) => p.blocks.flatMap((b) => b.entries.map((e) => ({
+    subject: s.name, kind: p.kind, group: p.group, rk: b.rk, value: e.value, hint: e.hint, date: e.date, at: markDate(e.date, g.yearStart),
+  })))));
+}
+// Максимальный балл за задание из интерактивного силлабуса (по названию из подсказки журнала).
+function maxOf(m) {
+  const map = cache.maxes?.[m.group]; if (!map) return null;
+  const key = String(m.hint || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const n = key.match(/(\d+)\s*$/)?.[1];
+  const v = map[key] ?? (n ? map['#' + n] : null);
+  return v > 0 && (!isNum(m.value) || num(m.value) <= v) ? v : null;
+}
+const markBox = (m) => { const mx = maxOf(m); return `<div class="mark ${isAbsent(m.value) ? 'n' : ''}">${esc(m.value || '—')}${mx ? `<small>/ ${mx}</small>` : ''}</div>`; };
+let maxesPending = null;
+async function loadMaxes() {
+  if (cache.maxes) return cache.maxes;
+  if (maxesPending) return maxesPending;
+  const st = stored('maxes');
+  if (!netOnly && st?.data && Date.now() - st.at < 864e5) return (cache.maxes = st.data);
+  const generation = cacheGeneration;
+  const pending = (async () => {
+    try {
+      const fresh = await api('/api/maxes');
+      if (generation !== cacheGeneration) return {};
+      cache.maxes = fresh;
+      localStorage.setItem('pc:maxes', JSON.stringify({ at: Date.now(), data: cache.maxes }));
+    } catch { if (generation !== cacheGeneration) return {}; cache.maxes = st?.data || {}; }
+    return cache.maxes;
+  })().finally(() => { if (maxesPending === pending) maxesPending = null; });
+  maxesPending = pending;
+  return maxesPending;
+}
+function markRow(m, showDate = true) {
+  return `<div class="file">${markBox(m)}
+    <div class="grow"><b class="ellip" style="display:block">${esc(m.subject)}</b><div class="mute">${showDate ? esc(m.date) + ' · ' : ''}${esc(m.hint && m.hint.startsWith(m.kind) ? m.hint : [m.kind, m.hint].filter(Boolean).join(' · '))} · ${t('rk')}${m.rk}</div></div></div>`;
+}
+
+const VIEWS = {
+  async home() {
+    const p = cache.profile ?? stored('profile'), sch = cache.schedule ?? stored('schedule');
+    homeFirst = { hero: heroHtml(p, cache.week ?? stored('week'), sch), today: todayHtml(sch) };
+    return `${shown('hero') ? `<div id="hero">${homeFirst.hero}</div>` : ''}
+      <div id="netwarn"></div>
+      ${warnBox(p?.warnings)}
+      <div class="quick" id="quick">${orderedQuick().filter(([k]) => shown(k)).map(([k]) => `<button data-go="${k}"><span class="i">${ic(k, true)}</span>${t('t_' + k)}</button>`).join('')}</div>
+      ${shown('last') ? `<div class="sec row"><span>${t('last_grades')}</span><span data-tabgo="grades" style="cursor:pointer;color:var(--acc);text-transform:none">${t('t_grades')} ›</span></div>
+      <div class="card" id="last">${loading()}</div>` : ''}
+      ${shown('today') ? `<div id="today">${homeFirst.today}</div>` : ''}
+      <div class="mute" style="text-align:center;margin:18px 0 4px">🔒 ${t('privacy_short')} · <a href="#" data-terms>${t('terms_title')}</a></div>`;
+  },
+
+  async schedule() {
+    const d = await load('schedule', '/api/schedule');
+    const n = d.days.length || 6;
+    S.day = Math.min(S.day ?? Math.min(todayWd(), 6), n);
+    return `<div class="dbar" data-noswipe><span class="ind" style="width:calc((100% - 8px) / ${n});transform:translateX(${(S.day - 1) * 100}%)"></span>${d.days.map((_, i) => `<button data-day="${i + 1}" class="${S.day === i + 1 ? 'on' : ''}">${DAYS()[i]}${i + 1 === todayWd() ? '<i class="td"></i>' : ''}</button>`).join('')}</div>
+      <div class="pg"><div class="pg-cur">${dayPane(d, S.day)}</div></div>`;
+  },
+
+  async exams() {
+    const d = await load('exams', '/api/exams');
+    if (!d.items.length) return warnBox(d.warnings) + empty('📭', `<b>${t('exams_none')}</b><br>${t('exams_none_sub')}`);
+    return warnBox(d.warnings) + d.items.map((it) => {
+      const v = Object.values(it);
+      return `<div class="card"><h3>${esc(v[0])}</h3>${Object.entries(it).slice(1).filter(([, x]) => x).map(([k, x]) => `<div class="kv"><span>${esc(k)}</span><span>${esc(x)}</span></div>`).join('')}</div>`;
+    }).join('');
+  },
+
+  async grades() {
+    S.gtab ??= 'current';
+    const seg = `<div class="seg slide" data-noswipe><span class="sind" style="transform:translateX(${S.gtab === 'session' ? 100 : 0}%)"></span><button data-gtab="current" class="${S.gtab === 'current' ? 'on' : ''}">${t('current')}</button><button data-gtab="session" class="${S.gtab === 'session' ? 'on' : ''}">${t('session')}</button></div>`;
+    return seg + `<div class="pg"><div class="pg-cur">${await gradesPane(S.gtab)}</div></div>`;
+  },
+};
+// «Текущие» и «Сессия» — две страницы листалки во вкладке «Оценки»
+async function gradesPane(tab) {
+    const seg = '';
+    if (tab === 'session') {
+      const [d, p] = await Promise.all([load('session', '/api/session'), load('profile', '/api/profile')]);
+      if (!d.years.length) return seg + empty('🎓', t('no_session'));
+      S.openSem ??= {};
+      return seg + `<div class="card gpa"><div><div class="mute">${t('gpa_total')}</div><b>${esc(p.gpa || '—')}</b></div><div class="mute" style="text-align:right">${d.years.length} ${t('years_short')}</div></div>` +
+        d.years.map((y) => `<div class="year">
+          <div class="year-head"><div><b>${esc(y.label)}</b><div class="mute">${esc(y.course)} ${t('course')}${y.credits ? ' · ' + esc(y.credits) + ' ' + t('credits') : ''}</div></div>
+            <div class="gpa-badge"><span>${t('year_gpa')}</span><b>${esc(y.gpa || '—')}</b></div></div>
+          ${y.semesters.map((sem) => { const key = y.label + sem.n; const open = S.openSem[key] ?? sem === d.years[0].semesters[0]; return `
+            <div class="sem-head" data-sem="${esc(key)}"><span>${open ? '▾' : '▸'} ${esc(sem.title)} <span class="mute">· ${sem.items.length}</span></span>
+              <span class="pill">${t('sem_gpa')} ≈ ${esc(sem.gpa || '—')}</span></div>
+            ${open ? sem.items.map((x) => `<div class="card row">
+              <div class="letter ${letterClass(x.letter)} ${String(x.letter).length > 3 ? 'long' : ''}">${esc(x.letter || '—')}</div>
+              <div class="grow"><h3>${esc(x.name)}</h3><div class="mute">${t('rating')} ${esc(x.rating)} · ${t('exam')} ${esc(x.exam || '—')}${x.date ? ' · ' + esc(x.date) : ''}</div></div>
+              <div class="score"><b>${esc(x.total)}</b><span>${t('final')}</span></div></div>`).join('') : ''}`; }).join('')}
+        </div>`).join('') + `<div class="mute" style="margin:8px 4px">≈ ${t('sem_gpa_note')}</div>`;
+    }
+    const d = await load('grades', '/api/grades');
+    if (!d.subjects.length) return seg + warnBox(d.warnings) + empty('📊', t('no_grades'));
+    const totalAbs = d.subjects.reduce((s, x) => s + (x.absences || 0), 0);
+    return seg + warnBox(d.warnings) + `
+      <div class="card gpa"><div><div class="mute">${t('gpa_total')}</div><b>${esc(d.gpa || '—')}</b></div>
+        <div style="text-align:right"><div class="mute">${t('absences')}</div><b style="font-size:24px;color:${totalAbs ? 'var(--bad)' : 'var(--ok)'}">${totalAbs}</b></div></div>
+      <button class="btn ghost wide" data-go="calendar" style="margin-bottom:6px">${ic('calendar')} ${t('open_calendar')}</button>
+      <div class="sec">${t('subjects')}</div>
+      ${d.subjects.map((s, i) => `<div class="card tap" data-subj="${i}"><div class="row">
+        <div class="grow"><h3>${esc(s.name)}</h3><div class="mute">${s.absences ? `<span class="pill bad">${s.absences} ${t('abs_short')}</span>` : `<span class="pill ok">${t('no_absences')}</span>`}</div></div>
+        <div class="score"><b>${esc(s.rk1 || '—')}</b><span>${t('rk')}1</span></div><div class="score"><b>${esc(s.rk2 || '—')}</b><span>${t('rk')}2</span></div><span class="mute">›</span>
+      </div></div>`).join('')}`;
+}
+Object.assign(VIEWS, {
+  async calendar() {
+    const now = new Date();
+    S.cal ??= { y: now.getFullYear(), m: now.getMonth(), subj: -1, sel: null };
+    const c = S.cal, D = await calData();
+    return `<div class="chips"><button data-cs="-1" class="${c.subj === -1 ? 'on' : ''}">${t('all_subjects')}</button>${D.g.subjects.map((s, i) => `<button data-cs="${i}" class="${c.subj === i ? 'on' : ''}">${esc(s.name)}</button>`).join('')}</div>
+      <div class="card calcard"><div class="row" style="margin-bottom:8px"><button class="btn ghost" data-mon="-1">‹</button><b class="caltitle">${MONTHS()[c.m]} ${c.y}</b><button class="btn ghost" data-mon="1">›</button></div>
+      <div class="pg"><div class="pg-cur">${monthHtml(D, c.y, c.m)}</div></div>
+      <div class="legend"><span><span style="color:var(--acc)">●</span> ${t('lesson')}</span><span><span style="color:var(--ok)">●</span> ${t('grade')}</span><span style="color:var(--bad)">● ${t('absence')}</span></div></div>
+      <div class="caldetail">${calDetail(D)}</div>`;
+  },
+});
+// данные календаря: отметки по дням и дни с парами (с учётом выбранного предмета)
+async function calData() {
+    const [g, sch] = await Promise.all([load('grades', '/api/grades'), load('schedule', '/api/schedule').catch(() => ({ lessons: [] }))]);
+    const c = S.cal;
+    const subjects = c.subj >= 0 ? [g.subjects[c.subj]] : g.subjects;
+    const marks = allMarks({ ...g, subjects });
+    const byDay = {};
+    for (const m of marks) (byDay[`${m.at.getFullYear()}-${m.at.getMonth()}-${m.at.getDate()}`] ??= []).push(m);
+    // дни, когда по расписанию есть пары (точки)
+    const lessonDays = new Set();
+    for (const l of sch.lessons || []) {
+      if (c.subj >= 0 && !sameSubject(l.subject, subjects[0].name)) continue;
+      const pr = (l.period.match(/\d\d\.\d\d/g) || []).map((x) => markDate(x, g.yearStart));
+      if (pr.length < 2) continue;
+      for (let d = new Date(pr[0]); d <= pr[1]; d.setDate(d.getDate() + 1)) if (((d.getDay() + 6) % 7) + 1 === l.weekday) lessonDays.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+    }
+    return { g, byDay, lessonDays };
+}
+// сетка одного месяца (страница листалки)
+function monthHtml(D, y, mo) {
+    const { byDay, lessonDays } = D, c = S.cal, now = new Date();
+    const first = new Date(y, mo, 1);
+    const days = new Date(y, mo + 1, 0).getDate();
+    const key = (d) => `${y}-${mo}-${d}`;
+    const tkey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    let cells = DAYS().map((d) => `<div class="h">${d}</div>`).join('') + Array((first.getDay() + 6) % 7).fill('<div class="d out"></div>').join('');
+    for (let d = 1; d <= days; d++) {
+      const list = byDay[key(d)] || [];
+      const sum = list.filter((m) => isNum(m.value)).reduce((s, m) => s + num(m.value), 0);
+      const hasNum = list.some((m) => isNum(m.value)), abs = list.some((m) => isAbsent(m.value));
+      cells += `<div class="d ${key(d) === tkey ? 'today' : ''} ${c.sel === key(d) ? 'sel' : ''}" data-d="${key(d)}">${abs ? '<span class="ab"></span>' : ''}${d}
+        ${hasNum ? `<span class="v">${sum}</span>` : abs ? `<span class="v n">${t('abs_short')}</span>` : lessonDays.has(key(d)) ? '<span class="dot"></span>' : ''}</div>`;
+    }
+    // всегда 6 строк: высота календаря не скачет при листании месяцев
+    cells += Array(42 - ((first.getDay() + 6) % 7) - days).fill('<div class="d out"></div>').join('');
+    return `<div class="cal">${cells}</div>`;
+}
+// отметки выбранного дня под календарём
+function calDetail(D) {
+    const c = S.cal;
+    if (!c.sel) return `<div class="mute" style="text-align:center;margin-top:8px">${t('tap_day')}</div>`;
+    const [y, mo, dd] = c.sel.split('-').map(Number);
+    const list = (D.byDay[c.sel] || []).filter((m) => m.value);
+    const sum = list.filter((m) => isNum(m.value)).reduce((s, m) => s + num(m.value), 0);
+    return `<div class="sec">${DAYS_FULL()[(new Date(y, mo, dd).getDay() + 6) % 7]}, ${pad2(dd)}.${pad2(mo + 1)}</div>` +
+      (list.length ? `<div class="card">${list.map((m) => markRow(m, false)).join('')}<div class="res"><span>${t('day_total')}</span><b>${sum}</b></div></div>` : `<div class="card mute">${t('nothing_day')}</div>`);
+}
+Object.assign(VIEWS, {
+  async calc() {
+    const g = await load('grades', '/api/grades');
+    const C = S.calcState ??= Object.assign({ goal: 'schol', thr: { pass: 50, schol: 70, hi: 90 }, adm: 50, plans: {} }, JSON.parse(localStorage.getItem('calc') || '{}'));
+    const goals = [['pass', t('c_pass')], ['schol', t('c_schol')], ['hi', t('c_schol_hi')]];
+    return `<div class="seg">${goals.map(([k, l]) => `<button data-goal="${k}" class="${C.goal === k ? 'on' : ''}">${l} · ${C.thr[k]}</button>`).join('')}</div>
+      <div class="card">
+        <div class="mute" style="margin-bottom:8px">${t('c_formula')}</div>
+        <div class="opt"><span>${t('c_thresholds')}</span><span>${goals.map(([k]) => `<input class="num" style="width:56px;margin-left:4px" type="number" min="0" max="100" data-thr="${k}" value="${C.thr[k]}">`).join('')}</span></div>
+        <div class="opt"><span>${t('c_note_adm')}</span><input class="num" type="number" min="0" max="100" data-adm value="${C.adm}"></div>
+      </div>
+      ${g.subjects.map((s, i) => `<div class="card" data-calc="${i}">${calcCard(s, C)}</div>`).join('')}`;
+  },
+
+  async teachers() {
+    const d = await load('teachers', '/api/teachers');
+    const a = d.advisor;
+    return (a.name ? `<div class="sec">${t('advisor')}</div><div class="card"><h3>👤 ${esc(a.name)}</h3>
+        ${a.email ? `<div class="kv"><span>${t('email')}</span><span><a href="mailto:${esc(a.email)}">${esc(a.email)}</a></span></div>` : ''}
+        ${a.phone ? `<div class="kv"><span>${t('phone')}</span><span><a href="tel:${esc(a.phone)}">${esc(a.phone)}</a></span></div>` : ''}</div>` : '') +
+      `<div class="sec">${t('subjects')}</div>` +
+      d.subjects.map((s) => `<div class="card"><h3>${esc(s.name)}</h3>${s.teachers.map((x) => `<div class="kv"><span>${esc(x.kind)}</span><span>${esc(x.name)}</span></div>`).join('')}</div>`).join('');
+  },
+
+  async distance() {
+    const d = await load('distance', '/api/distance');
+    return d.items.map((s) => `<div class="card tap row" data-go="dsubject" data-p='${esc(JSON.stringify({ sid: s.id, title: s.title, year: d.year, term: d.term }))}'><span class="lic">${ic('laptop', true)}</span><div class="grow"><h3>${esc(s.title)}</h3></div><span class="mute">›</span></div>`).join('');
+  },
+
+  async dsubject(p) {
+    const d = await load('ds' + p.sid, `/api/distance/tasks?sid=${p.sid}&year=${p.year}&term=${p.term}`);
+    const seen = new Set();
+    const tasks = d.weeks.flatMap((w) => w.tasks.map((x) => ({ ...x, week: w.week, acpos: w.acpos }))).filter((x) => !seen.has(x.id) && seen.add(x.id));
+    const status = (x) => { const now = new Date(); const s = markDate(x.start.slice(0, 5), 0), e = markDate(x.end.slice(0, 5), 0); s.setFullYear(+x.start.slice(6)); e.setFullYear(+x.end.slice(6)); e.setHours(23, 59); return now > e ? ['closed', ''] : now < s ? ['upcoming', 'warn'] : ['active', 'ok']; };
+    const res = d.weeks.filter((w) => w.resources);
+    return (tasks.length ? tasks.map((x) => { const [st, cls] = status(x); return `<div class="card tap" data-go="dtask" data-p='${esc(JSON.stringify({ ...p, id: x.id, acpos: x.acpos, week: x.week, title: x.title }))}'>
+        <div class="row"><h3 class="grow">${esc(x.title)}</h3><span class="pill ${cls}">${t(st)}</span></div>
+        <div class="mute">📅 ${esc(x.start)} — ${esc(x.end)}</div><div class="mute">👤 ${esc(x.author)}</div></div>`; }).join('') : empty('📭', t('no_tasks'))) +
+      (res.length ? `<div class="sec">${t('resources')}</div><div class="card">${res.map((w) => `<div class="kv"><span>${esc(w.num)} ${t('weeks')} · ${esc(w.period.replace(/ 00:00/g, ''))}</span><span>${w.resources}</span></div>`).join('')}</div>` : '');
+  },
+
+  async dtask(p) {
+    const d = await api(`/api/distance/task?id=${p.id}&acpos=${p.acpos}&sid=${p.sid}&year=${p.year}&term=${p.term}&week=${p.week}`);
+    const dl = await api('/api/downloads');
+    const siteUrl = `https://univer.kaznu.kz/student/discussion/task/preview/${p.id}/${p.acpos}/${p.sid}/${p.year}/${p.term}/${p.week}/0/0/0/`;
+    return `<div class="card">
+        <div class="kv"><span>${t('deadline')}</span><span>${esc(d.duration)}</span></div>
+        <div class="kv"><span>${t('max_score')}</span><span><b>${esc(d.maxScore)}</b></span></div>
+        <div class="kv"><span>${t('max_answers')}</span><span>${esc(d.maxAnswers)}</span></div>
+        <div class="kv"><span>${t('format')}</span><span>${esc(d.format)}</span></div>
+        <div class="kv"><span>👤</span><span>${esc(d.author)}</span></div>
+      </div>
+      ${d.description ? `<div class="sec">${t('description')}</div><div class="card" style="white-space:pre-wrap">${esc(d.description)}</div>` : ''}
+      <div class="sec">${t('my_answers')}</div>
+      ${d.messages.length ? d.messages.map((m) => `<div class="card"><div class="mute">${esc(m.date)} · ${esc(m.from)}</div>${m.text ? `<div style="margin-top:4px">${esc(m.text)}</div>` : ''}
+        ${m.files.map((f) => { const id = 'd' + f.href.split('/').filter(Boolean).pop(); return fileRow(dl.find((x) => x.id === id), { id, name: f.name.replace(/\s*\([^)]*\)$/, ''), href: f.href, size: f.name.match(/\(([^)]*)\)$/)?.[1] ?? '' }, p.title); }).join('')}</div>`).join('') : `<div class="card mute">${t('no_answers')}</div>`}
+      <a class="btn wide" href="${siteUrl}" target="_blank">${t('open_on_site')}</a>`;
+  },
+
+  async eservices() {
+    let d = await load('eservices', '/api/eservices');
+    if (d.services.some(x => typeof x === 'string') || d.statements.some(x => !x.statementId)) d = await load('eservices', '/api/eservices', true);
+    const statusCls = (s) => /заверш|выполн|аяқт|complet|done/i.test(s) ? 'ok' : /отклон|бас тарт|reject/i.test(s) ? 'bad' : 'warn';
+    return `<div class="sec">${t('my_requests')}</div>` +
+      (d.statements.length ? `<div class="card">${d.statements.map(x => `<div class="kv service-row"><div class="request-summary"><b>${esc(x.service)}</b><div class="mute">${esc(x.date)} · №${esc(x.id)}</div><span class="pill ${statusCls(x.status)}">${esc(x.status)}</span></div><button class="btn ghost service-action" data-service="${esc(x.statementId)}" data-kind="statement" data-href="${esc(x.href)}">${t('open')}</button></div>`).join('')}</div>` : `<div class="card mute">${t('no_requests')}</div>`) +
+      `<button class="btn ghost wide" data-service="" data-kind="statements" data-href="/ssc/StatementList">${t('all_requests')}</button><p class="mute">${t('request_details_hint')}</p>` +
+      `<div class="sec">${t('services')} · ${d.services.length}</div>
+      <input id="service-search" type="search" placeholder="${t('service_search')}" aria-label="${t('service_search')}" style="width:100%;min-height:44px;margin-bottom:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit">
+      <div class="card">${d.services.map(x => `<div class="kv service-row" data-service-row><span class="service-title">${esc(x.title)}</span><button class="btn ghost service-action" data-service="${esc(x.id)}" data-href="${esc(x.href)}">${t(x.kind === 'application' ? 'service_apply' : 'open')}</button></div>`).join('')}</div>`;
+
+  },
+
+  async debts() { return debtsView('fail', t('no_debts')); },
+
+  async more() {
+    const items = [...QUICK, ['card'], ['surveys'], ['fx']];
+    return `<div class="card tap row" data-go="settings"><span class="lic">${ic('settings', true)}</span><div class="grow"><h3>${t('t_settings')}</h3><div class="mute">${t('appearance')} · ${t('home_setup')} · ${t('notifications')}</div></div><span class="mute">›</span></div>
+      <div class="card tap row" data-go="design"><span class="lic">${ic('palette', true)}</span><div class="grow"><h3>${t('t_design')}</h3><div class="mute">${t('design_sub')}</div></div><span class="mute">›</span></div>
+      <div class="quick">${items.map(([k]) => `<button data-go="${k}"><span class="i">${ic(k, true)}</span>${t('t_' + k)}</button>`).join('')}</div>`;
+  },
+
+  async card() {
+    // учётные записи (Wi-Fi, Microsoft 365) — отдельный запрос: анкета не ждёт его
+    const [d, acc] = await Promise.all([load('card', '/api/card'), load('accounts', '/api/accounts').catch(() => null)]);
+    const kv = (k, v) => `<div class="kv"><span>${esc(k)}</span><span>${esc(v)}</span></div>`;
+    return accountsHtml(acc) + (d.photo && !settings.hidePhoto ? `<img class="photo" src="${esc(d.photo)}" alt="">` : '') +
+      d.sections.map((x) => `<div class="card">${x.pairs ? x.pairs.map(([k, v]) => kv(k, v)).join('') : [x.head, ...x.rows].map((r) => kv(r[0], r.slice(1).filter(Boolean).join(' · '))).join('')}</div>`).join('') +
+      `<a class="btn ghost wide" href="https://univer.kaznu.kz/student/profile/" target="_blank">${t('open_on_site2')}</a>`;
+  },
+
+  async other() {
+    return [['surveys', '📋'], ['fx', '🔁']].map(([k, i]) => `<div class="card tap row" data-go="${k}"><span style="font-size:24px">${i}</span><div class="grow"><h3>${t('t_' + k)}</h3></div><span class="mute">›</span></div>`).join('');
+  },
+
+  async surveys() {
+    const d = await load('surveys', '/api/surveys');
+    const pending = d.surveys.filter((s) => s.items.some((x) => !x.answered));
+    if (!pending.length) return empty('✅', t('s_none'));
+    return pending.map((s) => `<div class="sec" style="text-transform:none;letter-spacing:0">${esc(s.title)}</div>
+      <div class="mute" style="margin:-4px 4px 8px">${esc(s.kind)} · ${esc(s.start)} — ${esc(s.end)}</div>
+      <div class="card">${s.items.map((x) => `<div class="file" ${x.answered ? '' : `data-go="survey" data-p='${esc(JSON.stringify({ sid: s.id, item: x.id, title: x.teacher || s.title, sub: x.subject }))}' style="cursor:pointer"`}>
+        <span style="font-size:22px">${x.answered ? '✅' : '📝'}</span>
+        <div class="grow"><b>${esc(x.teacher || x.subject || s.title)}</b>${x.teacher ? `<div class="mute">${esc(x.subject)}</div>` : ''}</div>
+        ${x.answered ? `<span class="mute">${esc(x.date)}</span>` : `<span class="btn ghost">${t('s_open')}</span>`}</div>`).join('')}</div>`).join('') +
+      `<a class="btn ghost wide" href="https://univer.kaznu.kz/student/rating/" target="_blank" style="margin-top:6px">${t('open_site')}</a>`;
+  },
+
+  async survey(p) {
+    let f;
+    try { f = await load('sv' + p.sid + p.item, `/api/survey?sid=${p.sid}&item=${encodeURIComponent(p.item)}`); }
+    catch { return `<div class="warn">${t('s_fallback')}</div><a class="btn wide" href="https://univer.kaznu.kz/student/rating/${esc(p.sid)}/go/${esc(p.item)}/" target="_blank">${t('open_site')}</a>`; }
+    if (!f.questions.length) return `<div class="warn">${t('s_fallback')}</div><a class="btn wide" href="https://univer.kaznu.kz/student/rating/${esc(p.sid)}/go/${esc(p.item)}/" target="_blank">${t('open_site')}</a>`;
+    const A = (S.answers ??= {})[p.sid + p.item] ??= {};
+    return (p.sub ? `<div class="mute" style="margin:-4px 4px 10px">${esc(p.sub)}</div>` : '') +
+      `<button class="btn ghost wide" id="autofill" style="margin-bottom:10px">✨ ${t('s_autofill')}</button>` +
+      f.questions.map((q, i) => `<div class="card" data-q="${esc(q.name)}">
+        <div style="font-weight:600;margin-bottom:8px">${esc(q.text)}${q.required ? ' <span style="color:var(--bad)">*</span>' : ''}</div>
+        ${q.type === 'text' ? `<textarea class="field" rows="3" data-name="${esc(q.name)}">${esc(A[q.name] || '')}</textarea>`
+          : q.type === 'select' ? `<select class="field" data-name="${esc(q.name)}"><option value=""></option>${q.options.map((o) => `<option value="${esc(o.value)}" ${A[q.name] === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`
+          : q.options.map((o) => { const on = q.type === 'checkbox' ? (A[q.name] || []).includes(o.value) : A[q.name] === o.value;
+              return `<label class="opt-row ${on ? 'on' : ''}"><input type="${q.type}" name="q${i}" data-name="${esc(q.name)}" value="${esc(o.value)}" ${on ? 'checked' : ''}><span>${esc(o.label)}</span></label>`; }).join('')}
+      </div>`).join('') +
+      `<button class="btn wide" id="ssend">${t('s_send')}</button>
+      <a class="btn ghost wide" href="https://univer.kaznu.kz/student/rating/${esc(p.sid)}/go/${esc(p.item)}/" target="_blank" style="margin-top:8px">${t('open_site')}</a>`;
+  },
+  async fx() { return debtsView('fx', t('no_fx')); },
+
+  async umkd() {
+    const [d, dl] = await Promise.all([load('umkd', '/api/umkd'), api('/api/downloads')]);
+    return warnBox(d.warnings) + (dl.length ? `<div class="sec row"><span>${t('downloaded')}</span><span data-go="downloads" style="cursor:pointer;color:var(--acc);text-transform:none">${t('all')} ${dl.length} ›</span></div>
+      <div class="card">${dl.slice(0, 3).map((x) => fileRow(x)).join('')}</div>` : '') +
+      `<div class="sec">${t('disciplines')}</div>` + d.items.map((s) => `<div class="card tap row" data-go="folder" data-p='${esc(JSON.stringify({ id: s.id, title: s.title }))}'><span class="lic">${ic('book', true)}</span><div class="grow"><h3>${esc(s.title)}</h3><div class="mute">${esc(s.kind)}</div></div><span class="mute">›</span></div>`).join('');
+  },
+
+  async folder(p) {
+    const root = await load('umkd', '/api/umkd');
+    const [f, dl] = await Promise.all([load('f' + p.id, `/api/umkd/folder?id=${p.id}&year=${root.year}&term=${root.term}`), api('/api/downloads')]);
+    const files = f.entries.filter((e) => e.type === 'file');
+    const folders = f.entries.filter((e) => e.type === 'folder');
+    const groups = [...new Set(files.map((x) => x.group))];
+    S.grp ??= {};
+    const g = S.grp[p.id] ?? 'ALL';
+    const ids = new Set(dl.map((x) => x.id));
+    const shown = files.filter((x) => g === 'ALL' || x.group === g);
+    // новые файлы сверху: дата загрузки дд.мм.гггг
+    const ymd = (d) => d ? d.split('.').reverse().join('') : '';
+    shown.sort((a, b) => ymd(b.date).localeCompare(ymd(a.date)));
+    const mine = shown.filter((x) => ids.has(x.id));
+    const byCat = {};
+    for (const x of shown.filter((x) => !ids.has(x.id))) (byCat[x.category || t('g_files')] ??= []).push(x);
+    return (groups.length > 1 ? `<div class="chips">${['ALL', ...groups].map((x) => `<button data-grp="${esc(x)}" class="${g === x ? 'on' : ''}">${x === 'ALL' ? t('all') : grp(x)} <span class="mute">${x === 'ALL' ? files.length : files.filter((y) => y.group === x).length}</span></button>`).join('')}</div>` : '') +
+      (folders.length ? `<div class="card">${folders.map((x) => `<div class="file" data-go="folder" data-p='${esc(JSON.stringify({ id: x.id, title: x.name }))}' style="cursor:pointer"><span class="lic">${ic('folder', true)}</span><div class="grow">${esc(x.name)}</div>›</div>`).join('')}</div>` : '') +
+      (mine.length ? `<div class="sec">${t('downloaded')}</div><div class="card">${mine.map((x) => fileRow(dl.find((d) => d.id === x.id), x)).join('')}</div>` : '') +
+      Object.entries(byCat).map(([cat, list]) => `<div class="sec" style="text-transform:none;letter-spacing:0">${esc(cat)}</div><div class="card">${list.map((x) => fileRow(null, x, p.title)).join('')}</div>`).join('') +
+      (!files.length && !folders.length ? empty('🗂️', t('no_files')) : '');
+  },
+
+  async downloads() {
+    const dl = await api('/api/downloads');
+    return dl.length ? `<div class="card">${dl.map((d) => fileRow(d)).join('')}</div>` : empty('⬇️', t('no_downloads'));
+  },
+
+  async settings() {
+    const p = await load('profile', '/api/profile').catch(() => ({}));
+    const sw = (name, on) => `<label class="sw"><input type="checkbox" data-sw="${name}" ${on ? 'checked' : ''}><i></i></label>`;
+    const seg = (name, opts) => `<div class="mini-seg">${opts.map(([v, l]) => `<button data-set="${name}" data-v="${v}" class="${settings[name] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    return `<div class="card row">${avatarHtml(p)}<div class="grow"><h3>${esc(p.name || '')}</h3><div class="mute">${esc(p.login || '')} · ${esc(p.course ? p.course + ' ' + t('course') : '')}</div></div></div>
+      <div class="sec">${t('appearance')}</div>
+      <div class="card">
+        <div class="opt"><span>${t('language')}</span>${seg('lang', [['kz', 'Қаз'], ['ru', 'Рус'], ['en', 'Eng']])}</div>
+        <div class="opt"><span>${t('theme')}</span>${seg('theme', [['light', t('light')], ['dark', t('dark')], ['system', t('auto')]])}</div>
+        <div class="opt"><span>${t('color')}</span><div class="swatches">${ACCENTS.map((a) => `<button data-acc="${a}" class="${settings.accent === a ? 'on' : ''}" style="background:${a}"></button>`).join('')}</div></div>
+        <div class="opt"><span>${t('t_design')}<div class="mute">${t('design_sub')}</div></span><button class="btn ghost" data-go="design">${t('open')} ›</button></div>
+        <div class="opt"><span>${t('custom_color')}</span><button class="wheel" id="palette" title="${t('custom_color')}"><span style="background:${settings.accent}"></span></button></div>
+        <div class="opt"><span>${t('save_to')}</span>${seg('saveTo', [['app', t('save_app')], ['documents', t('save_docs')]])}</div>
+        <div class="opt"><span>${t('text_size')}</span>${seg('size', [['s', 'A−'], ['m', 'A'], ['l', 'A+']])}</div>
+        <div class="opt"><span>${t('hide_gpa')}</span>${sw('hideGpa', settings.hideGpa)}</div>
+        <div class="opt"><span>${t('hide_photo')}<div class="mute">${t('hide_photo_sub')}</div></span>${sw('hidePhoto', settings.hidePhoto)}</div>
+      </div>
+      ${lockSettingsHtml()}
+      <div class="sec">${t('motion_sec')}</div>
+      <div class="card">
+        <div class="opt col"><span>${t('motion')}<div class="mute">${t('motion_sub')}</div></span>${seg('motion', [['full', t('m_full')], ['fast', t('m_fast')], ['off', t('m_off')]])}</div>
+        <div class="opt col"><span>${t('vibe')}<div class="mute">${t('vibe_sub')}</div></span>${seg('vibe', [['off', t('v_off')], ['light', t('v_light')], ['normal', t('v_normal')], ['strong', t('v_strong')]])}</div>
+      </div>
+      <div class="sec">${t('file_names')}</div>
+      <div class="card">
+        <div class="opt"><span>${t('fn_example')}</span>${seg('fileNames', [['scroll', t('fn_scroll')], ['full', t('fn_full')]])}</div>
+        ${fileRow(null, { id: 'x', name: t('fn_sample'), size: '1.2 MB', date: '03.11.2026' }).replace(/<button[\s\S]*<\/button>/, '')}
+      </div>
+      <div class="sec">${t('home_setup')}</div>
+      <div class="card"><div class="mute" style="margin-bottom:4px">${t('home_setup_sub')}</div>
+        ${[['hero', `<span class="lic">${ic('card', true)}</span>`, t('hero_block')], ...orderedQuick().map(([k]) => [k, `<span class="lic">${ic(k, true)}</span>`, t('t_' + k)]), ['last', `<span class="lic">${ic('grades', true)}</span>`, t('last_block')], ['today', `<span class="lic">${ic('schedule', true)}</span>`, t('today_block')]]
+          .map(([k, pv, l]) => `<div class="opt"><span class="prev">${pv}<span>${l}</span></span>${sw('home:' + k, shown(k))}</div>`).join('')}
+        ${settings.homeOrder ? `<div class="opt"><span>${t('order_reset')}</span><button class="btn ghost" id="order-reset">${t('reset')}</button></div>` : ''}
+      </div>
+      <div class="sec">${t('notifications')}</div>
+      <div class="card">
+        <div class="opt"><span>${t('notify_on')}<div class="mute">${t('notify_sub')}</div></span>${sw('notify', settings.notify)}</div>
+        ${window.Backend?.battery ? `<div class="opt"><span>${t('battery')}<div class="mute">${t('battery_sub')}</div></span><button class="btn ghost" id="battery">${t('battery_btn')}</button></div>` : ''}
+      </div>
+      <div class="sec">${t('data')}</div>
+      <div class="card">
+        <div class="opt"><span>${t('refresh_data')}</span><button class="btn ghost" id="refresh">${t('refresh')}</button></div>
+        <div class="opt"><span>${t('clear_dl')}</span><button class="btn ghost" id="cleardl">${t('delete')}</button></div>
+        <div class="opt"><span>${t('terms_title')}</span><button class="btn ghost" id="terms">${t('open')}</button></div>
+      </div>
+      <div class="privacy"><span>🔒</span><span>${t('privacy_app')}</span></div>
+      <button class="btn wide" id="logout" style="background:var(--bad);margin-top:14px">${t('logout')}</button>
+      <div class="mute" style="text-align:center;margin-top:12px">${t('version')} 0.16.4</div>`;
+  },
+});
+
+// пары одного дня (страница листалки расписания)
+function dayPane(d, day) {
+  const list = d.lessons.filter((l) => l.weekday === day).sort((a, b) => a.time.localeCompare(b.time));
+  const isToday = day === todayWd();
+  return `<div class="sec">${DAYS_FULL()[day - 1]}${isToday ? ' · ' + t('today').toLowerCase() : ''}</div>
+    ${list.length ? dayList(list, isToday) : `<div class="card empty"><div class="ico">😴</div>${t('no_lessons_day')}</div>`}`;
+}
+// подсветка выбранного в полоске (дни недели, «Текущие/Сессия»): pos — дробная позиция,
+// ms — за сколько доехать (0 — сразу, когда двигается за пальцем)
+function moveInd(ind, pos, ms = 0) {
+  if (!ind) return;
+  ind.style.transition = ms ? `transform ${ms}ms ${EASE}` : 'none';
+  ind.style.transform = `translate3d(${pos * 100}%,0,0)`;
+}
+
+async function debtsView(kind, emptyText) {
+  const d = await load('debts', '/api/debts');
+  const tables = d[kind];
+  if (!tables.some((x) => x.rows.length)) return empty('✅', emptyText);
+  return tables.filter((x) => x.rows.length).map((x, i) => `<div class="sec">${esc(x.title || (i === 0 ? t('t_' + (kind === 'fail' ? 'debts' : 'fx')) : t('applications')))}</div>` +
+    x.rows.map((r) => `<div class="card">${r.map((v, j) => v ? `<div class="kv"><span>${esc(x.head[j] || '')}</span><span>${esc(v)}</span></div>` : '').join('')}</div>`).join('')).join('');
+}
+
+// Калькулятор: итог = (РК1 + РК2) × 0,3 + экзамен × 0,4.
+// ceil с округлением, чтобы 57.99999 не превращалось в 58 → 59 из-за дробей
+const up = (x) => Math.ceil(Math.round(x * 1000) / 1000);
+function calcCard(s, C) {
+  const plan = C.plans[s.name] ?? {};
+  const rk2 = plan.rk2 ?? (num(s.rk2) > 0 ? num(s.rk2) : '');
+  return `<h3>${esc(s.name)}</h3>
+    <div class="row" style="margin:8px 0;gap:6px">
+      <label class="mute">${t('rk')}1<br><input class="num" value="${num(s.rk1)}" disabled></label>
+      <label class="mute">${t('c_rk2_plan')}<br><input class="num" type="text" inputmode="numeric" data-plan="rk2" value="${rk2}" placeholder="?"></label>
+      <label class="mute">${t('c_exam_plan')}<br><input class="num" type="text" inputmode="numeric" data-plan="exam" value="${plan.exam ?? ''}" placeholder="?"></label>
+    </div><div class="cres">${calcRows(s, C)}</div>`;
+}
+function calcRows(s, C) {
+  const rk1 = num(s.rk1);
+  const plan = C.plans[s.name] ?? {};
+  const rk2 = plan.rk2 ?? (num(s.rk2) > 0 ? num(s.rk2) : '');
+  const exam = plan.exam ?? '';
+  const T = C.thr[C.goal];
+  const fmt = (v) => v > 100 ? `<span class="pill bad">${t('c_impossible')}</span>` : v <= 0 ? `<span class="pill ok">${t('c_done')}</span>` : `<b>≥ ${v}</b>`;
+  const adm = up(2 * C.adm - rk1);
+  const rows = [];
+  rows.push(`<div class="res"><span>🎫 ${t('c_admission')}</span><span>${adm <= 0 ? `<span class="pill ok">${t('c_admission_ok')}</span>` : adm > 100 ? `<span class="pill bad">${t('c_impossible')}</span>` : `${t('c_admission_need')} <b>${adm}</b>`}</span></div>`);
+  const e = exam === '' ? 100 : num(exam);
+  const needRk2 = Math.max(up((T - 0.4 * e) / 0.3 - rk1), adm > 0 ? adm : 0);
+  rows.push(`<div class="res"><span>🎯 ${t('c_rk2_for_goal')} <span class="mute">(${t('c_if_exam')} ${e})</span></span><span>${fmt(needRk2)}</span></div>`);
+  if (rk2 !== '') {
+    const needExam = up((T - 0.3 * (rk1 + num(rk2))) / 0.4);
+    rows.push(`<div class="res"><span>📝 ${t('c_exam_for_goal')} <span class="mute">(${t('c_with_rk2')} ${rk2})</span></span><span>${fmt(needExam)}</span></div>`);
+  }
+  if (rk2 !== '' && exam !== '') {
+    const total = Math.round((0.3 * (rk1 + num(rk2)) + 0.4 * num(exam)) * 10) / 10;
+    const ok = total >= T;
+    rows.push(`<div class="res"><span>📈 ${t('c_projected')}</span><span><b style="color:${ok ? 'var(--ok)' : 'var(--bad)'}">${total}</b> <span class="pill ${ok ? 'ok' : 'bad'}">${letterOf(total)}</span></span></div>`);
+  }
+  return rows.join('');
+}
+function letterOf(x) {
+  const scale = [[95, 'A'], [90, 'A-'], [85, 'B+'], [80, 'B'], [75, 'B-'], [70, 'C+'], [65, 'C'], [60, 'C-'], [55, 'D+'], [50, 'D'], [25, 'FX'], [0, 'F']];
+  return scale.find(([min]) => x >= min)[1];
+}
+
+function extOf(name) { return (String(name).match(/\.(\w+)$/)?.[1] || '').toLowerCase(); }
+// логины и пароли университетских учётных записей: пароль скрыт, рядом «Показать» и «Копировать»
+// аватарка в настройках: фото из анкеты студента (если есть и не скрыто), иначе первая буква имени
+function avatarHtml(p) {
+  const photo = !settings.hidePhoto && (cache.card ?? stored('card'))?.photo;
+  return photo ? `<img class="avatar" src="${esc(photo)}" alt="">`
+    : `<div class="logo avatar">${esc((p.name || '?')[0])}</div>`;
+}
+function accountsHtml(acc) {
+  const list = (acc?.accounts || []).filter((a) => a.login || a.password);
+  if (!list.length) return '';
+  const secret = (v) => `<span class="acc-pw"><b data-pw="${esc(v)}">••••••••</b> <a href="#" data-pwshow>${t('show')}</a> <a href="#" data-copy="${esc(v)}">${t('copy')}</a></span>`;
+  return list.map((a) => `<div class="sec">${esc(a.title || t(a.id === 'wifi' ? 'wifi' : 'acc_' + a.id))}</div><div class="card">
+    ${a.login ? `<div class="kv"><span>${t('login')}</span><span><b>${esc(a.login)}</b> <a href="#" data-copy="${esc(a.login)}">${t('copy')}</a></span></div>` : ''}
+    ${a.password ? `<div class="kv"><span>${t('password')}</span>${secret(a.password)}</div>` : ''}</div>`).join('');
+}
+async function copyText(v) {
+  try { await navigator.clipboard.writeText(v); }
+  catch { const ta = document.createElement('textarea'); ta.value = v; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  toast(t('copied')); haptic('select');
+}
+
+function fileRow(saved, x, subject) {
+  const name = saved?.name ?? x.name;
+  const ext = extOf(name);
+  const sub = saved ? `${saved.subject ? esc(saved.subject) + ' · ' : ''}${(saved.size / 1048576).toFixed(saved.size > 1048576 ? 1 : 2)} ${t('mb')}` : [x.size, x.date].filter(Boolean).map(esc).join(' · ');
+  const action = saved
+    ? `<a class="btn ok" href="/api/open/${esc(saved.id)}" target="_blank">${t('open')}</a>`
+    : `<button class="btn ghost" data-dl="${esc(x.id)}" data-href="${esc(x.href)}" data-subject="${esc(subject || '')}" data-group="${esc(x.group || '')}" data-name="${esc(x.name)}">${t('download')}</button>`;
+  return `<div class="file"${saved ? ` data-saved="${esc(saved.id)}"` : ''}><i class="tick"></i><div class="ext ${ext}">${esc(ext.toUpperCase().slice(0, 4) || 'FILE')}</div><div class="grow"><div class="fname ${settings.fileNames === 'full' ? 'full' : 'marq'}"><span>${esc(name)}</span></div><div class="mute">${sub}</div></div>${action}</div>`;
+}
+
+function subjectSheet(s) {
+  // текущая рубежка по академическому календарю; если календаря нет — РК2, когда по ней уже есть отметки
+  const wk = cache.week ?? stored('week');
+  const hasRk2 = (s.parts || []).some((p) => p.blocks.some((b) => b.rk === 2 && b.entries.some((e) => e.value)));
+  S.rk = wk?.rk || (hasRk2 ? 2 : 1);
+  // отметки одной рубежки — страница листалки (РК1 ⇄ РК2 свайпом влево-вправо)
+  const rkPane = (rk) => {
+    const blocks = (s.parts || []).flatMap((p) => p.blocks.filter((b) => b.rk === rk).map((b) => ({ ...b, kind: p.kind, teacher: p.teacher, group: p.group })));
+    const entries = blocks.flatMap((b) => b.entries.map((e) => ({ ...e, kind: b.kind, group: b.group, subject: s.name, rk, at: markDate(e.date, cache.grades.yearStart) }))).sort((a, b) => a.at - b.at);
+    const abs = entries.filter((e) => isAbsent(e.value)).length;
+    return `<div class="row" style="margin-bottom:10px"><span class="mute">${t('marked_lessons')}: ${entries.length}</span>${abs ? `<span class="pill bad">${abs} ${t('abs_short')}</span>` : ''}</div>
+      ${blocks.map((b) => `<div class="mute" style="margin:4px 2px">${esc(b.kind)} · ${esc(b.teacher)} · ${t('sum')} <b>${esc(b.total || '0')}</b></div>`).join('')}
+      <div class="card">${entries.length ? entries.map((e) => `<div class="file">${markBox(e)}<div class="grow"><b>${esc(e.date)}</b><div class="mute">${esc(e.hint && e.hint.startsWith(e.kind) ? e.hint : [e.kind, e.hint].filter(Boolean).join(' · '))}</div></div></div>`).join('') : `<div class="mute">${t('no_marks_rk')}</div>`}</div>`;
+  };
+  const bg = document.createElement('div'); bg.className = 'sheet-bg';
+  bg.innerHTML = `<div class="sheet"><div class="grab"></div><h2 style="margin:0 0 4px;font-size:19px">${esc(s.name)}</h2>
+      <div class="mute" style="margin-bottom:12px">${esc(s.period || '')}</div>
+      <div class="seg slide" data-noswipe><span class="sind" style="transform:translate3d(${(S.rk - 1) * 100}%,0,0)"></span><button data-rk="1" class="${S.rk === 1 ? 'on' : ''}">${t('rk')}1 · ${esc(s.rk1 || '—')}</button><button data-rk="2" class="${S.rk === 2 ? 'on' : ''}">${t('rk')}2 · ${esc(s.rk2 || '—')}</button></div>
+      <div class="pg"><div class="pg-cur">${rkPane(S.rk)}</div></div></div>`;
+  bg.onclick = (e) => { if (e.target === bg) closeSheet(bg); };
+  const sheet = bg.firstChild, ind = sheet.querySelector('.sind');
+  const other = (dir) => (S.rk + dir === 1 || S.rk + dir === 2 ? S.rk + dir : null);
+  const P = pager(sheet, sheet.querySelector('.pg'), {
+    build: (dir) => (other(dir) ? rkPane(other(dir)) : null),
+    progress: (p, dir) => { if (other(dir)) moveInd(ind, S.rk - 1 + dir * p); },
+    settle: (dir, going, d) => {
+      const rk = going ? other(dir) : S.rk;
+      moveInd(ind, rk - 1, d);
+      sheet.querySelectorAll('[data-rk]').forEach((x) => x.classList.toggle('on', Number(x.dataset.rk) === rk));
+      if (going) haptic('page');
+    },
+    commit: (dir) => { S.rk = other(dir); },
+  });
+  sheet.querySelectorAll('[data-rk]').forEach((b) => (b.onclick = () => { const rk = Number(b.dataset.rk); if (rk !== S.rk) P.go(rk - S.rk); }));
+  if (!cache.maxes) loadMaxes().then(() => { const cur = sheet.querySelector('.pg-cur'); if (bg.isConnected && cur) cur.innerHTML = rkPane(S.rk); }); // «/ 7» у отметок
+  app.appendChild(bg);
+  sheetDrag(bg);
+  gestures(sheet, true);
+}
+
+// Закрыть окно: уезжает вниз, фон гаснет.
+function closeSheet(bg) {
+  if (!bg || bg.classList.contains('closing')) return;
+  const sh = bg.firstChild;
+  sh.style.transition = `transform ${ms('sheet')}ms ${EASE_IO}`; sh.style.transform = 'translate3d(0,100%,0)';
+  bg.classList.add('closing');
+  setTimeout(() => bg.remove(), ms('sheet'));
+}
+// Окно тянется пальцем вниз (когда прокручено до верха) и закрывается, если потянуть достаточно далеко или быстро.
+function sheetDrag(bg) {
+  const sh = bg.firstChild;
+  let y0 = null, x0 = 0, dy = 0, t0 = 0, drag = false;
+  sh.addEventListener('touchstart', (e) => { if (e.target.closest('[data-nodrag], input[type=range]')) { y0 = null; return; } y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0; t0 = Date.now(); drag = false; }, { passive: true });
+  sh.addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    const dx = e.touches[0].clientX - x0;
+    if (!drag) {
+      if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) { y0 = null; return; } // свайп вбок — это листание, не закрытие окна
+      if (dy > 6 && sh.scrollTop <= 0) drag = true; else if (Math.abs(dy) > 6) { y0 = null; return; }
+    }
+    if (!drag) return;
+    if (e.cancelable) e.preventDefault();
+    sh.style.transition = 'none';
+    sh.style.transform = `translate3d(0,${Math.max(0, dy)}px,0)`;
+    bg.style.background = `rgba(0,0,0,${0.4 * Math.max(0, 1 - dy / sh.offsetHeight)})`;
+  }, { passive: false });
+  sh.addEventListener('touchend', () => {
+    if (y0 === null || !drag) { y0 = null; return; }
+    y0 = null;
+    const fast = dy > 40 && dy / (Date.now() - t0) > 0.6;
+    if (dy > Math.min(140, sh.offsetHeight * 0.3) || fast) return closeSheet(bg);
+    sh.style.transition = `transform ${ms('snap')}ms ${EASE}`; sh.style.transform = ''; bg.style.background = '';
+  });
+}
+
+function sheet(html, onClick) {
+  const bg = document.createElement('div'); bg.className = 'sheet-bg';
+  bg.innerHTML = `<div class="sheet"><div class="grab"></div>${html}</div>`;
+  bg.onclick = (e) => { if (e.target === bg) closeSheet(bg); else onClick?.(e, () => closeSheet(bg)); };
+  app.appendChild(bg);
+  sheetDrag(bg);
+}
+
+// Палитра: 12 оттенков × 6 яркостей + серые.
+function paletteSheet(onPick) {
+  const hex = (h, s, l) => {
+    s /= 100; l /= 100;
+    const f = (n) => { const k = (n + h / 30) % 12; const c = l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(c * 255).toString(16).padStart(2, '0'); };
+    return '#' + f(0) + f(8) + f(4);
+  };
+  const rows = [25, 35, 45, 55, 65, 75].map((l) => Array.from({ length: 12 }, (_, i) => hex(i * 30, 80, l)));
+  rows.push(Array.from({ length: 12 }, (_, i) => hex(0, 0, 8 + i * 7)));
+  sheet(`<h2 style="margin:0 0 12px;font-size:19px">${t('custom_color')}</h2>
+    <div class="palette">${rows.flat().map((c) => `<button data-c="${c}" class="${c === settings.accent ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>`,
+  (e, close) => { const b = e.target.closest('[data-c]'); if (b) { close(); onPick(b.dataset.c); } });
+}
+
+function termsSheet() {
+  sheet(`<h2 style="margin:0 0 4px;font-size:19px">${t('terms_title')}</h2><div class="terms">${t('terms_text')}</div>
+    <button class="btn wide" data-close>OK</button>`, (e, close) => { if (e.target.closest('[data-close]')) close(); });
+}
+
+// ---------- обработчики ----------
+function bindCommon(m) {
+  m.querySelectorAll('[data-go]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const p = b.dataset.p ? JSON.parse(b.dataset.p) : {}; go(b.dataset.go, p); }));
+  m.querySelectorAll('[data-tabgo]').forEach((b) => (b.onclick = () => tab(b.dataset.tabgo)));
+  m.querySelectorAll('[data-reveal]').forEach((b) => (b.onclick = () => { b.textContent = b.dataset.reveal; setTimeout(() => { b.textContent = '***'; }, 3000); }));
+  m.querySelectorAll('.fname.marq').forEach((el) => { const over = el.scrollWidth - el.clientWidth; if (over > 4) { el.classList.add('run'); el.style.setProperty('--dx', -(over + 6) + 'px'); el.style.setProperty('--dur', Math.max(3, over / 30) + 's'); } });
+  m.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); copyText(b.dataset.copy); }));
+  m.querySelectorAll('[data-pwshow]').forEach((b) => (b.onclick = (e) => {
+    e.preventDefault(); const w = b.parentElement.querySelector('[data-pw]'); const shown = w.textContent !== '••••••••';
+    w.textContent = shown ? '••••••••' : w.dataset.pw; b.textContent = shown ? t('show') : t('hide');
+  }));
+  m.querySelectorAll('[data-terms]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); termsSheet(); }));
+  m.querySelectorAll('[data-dl]').forEach((b) => (b.onclick = async () => {
+    if (b.disabled) return;
+    b.disabled = true; b.textContent = '…';
+    const x = { id: b.dataset.dl, name: b.dataset.name, href: b.dataset.href, group: b.dataset.group };
+    try {
+      const d = await api('/api/download', { method: 'POST', body: JSON.stringify({ href: x.href, id: x.id, subject: b.dataset.subject, group: x.group, name: x.name, saveTo: settings.saveTo }) });
+      haptic('success'); // без всплывающей плашки: строка сама становится «Открыть»
+      // экран не перерисовываем: заменяем только строку файла — кнопка «Скачать» становится «Открыть»
+      dlVersion++;
+      const row = b.closest('.file');
+      if (row?.isConnected) { const tmp = document.createElement('div'); tmp.innerHTML = fileRow(d, x); const nr = tmp.firstChild; row.replaceWith(nr); bindCommon(nr); }
+      if (S.page) S.page._dl = dlVersion; touched();
+    } catch (e) { if (b.isConnected) { b.disabled = false; b.textContent = t('download'); } toast(e.message); haptic('error'); }
+  }));
+}
+// процент скачивания на кнопке (приходит от нативной загрузки)
+window.addEventListener('dlprogress', (e) => {
+  const { id, pct } = e.detail || {};
+  S.page?.querySelectorAll(`[data-dl="${CSS.escape(String(id))}"]`).forEach((b) => { if (b.disabled) b.textContent = pct + '%'; });
+});
+// «Лучший» ответ для автозаполнения: максимум по шкале, «Нет» на вопросы о встрече с нарушениями, иначе «Да».
+const NEG_Q = /кездест|ықтималд|заңсыз|бар деп ойлайсыз|встреча|сталкива|незакон|есть ли|существу|допустим|encounter|illegal|exist/i;
+function bestAnswer(q) {
+  const o = q.options;
+  if (q.type === 'text' || !o.length) return undefined;
+  if (q.type === 'checkbox') return [o[0].value];
+  const nums = o.map((x) => x.label.match(/^\s*(\d+)/)?.[1]).map((x) => (x === undefined ? null : Number(x)));
+  if (nums.every((n) => n !== null)) return o[nums.indexOf(Math.max(...nums))].value;
+  const word = (re) => o.find((x) => re.test(x.label.trim()));
+  const yes = word(/^(иә|да|yes)(?=$|[\s,.!])/i), no = word(/^(жоқ|нет|no)(?=$|[\s,.!])/i);
+  if (yes && no) return NEG_Q.test(q.text) ? no.value : yes.value;
+  const best = o.find((x) => /толық келіс|полностью соглас|strongly agree|өте жақсы|отлично|excellent|үздік/i.test(x.label)) || yes;
+  return (best || o[Math.floor((o.length - 1) / 2)]).value;
+}
+
+const BIND = {
+  survey(m, p) {
+    const f = cache['sv' + p.sid + p.item]; if (!f) return;
+    const A = S.answers[p.sid + p.item];
+    m.oninput = m.onchange = (e) => {
+      const el = e.target; const name = el.dataset.name; if (!name) return;
+      if (el.type === 'checkbox') { const set = new Set(A[name] || []); el.checked ? set.add(el.value) : set.delete(el.value); A[name] = [...set]; }
+      else A[name] = el.value;
+      if (el.type === 'radio' || el.type === 'checkbox') el.closest('.card').querySelectorAll('.opt-row').forEach((r) => r.classList.toggle('on', r.querySelector('input').checked));
+    };
+    m.querySelector('#autofill').onclick = () => { for (const q of f.questions) { const v = bestAnswer(q); if (v !== undefined) A[q.name] = v; } draw(); };
+    m.querySelector('#ssend').onclick = async (e) => {
+      const miss = f.questions.find((q) => q.required && !(Array.isArray(A[q.name]) ? A[q.name].length : A[q.name]));
+      if (miss) { toast(t('s_required')); m.querySelector(`[data-q="${CSS.escape(miss.name)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+      e.target.disabled = true; e.target.textContent = '…';
+      try {
+        const r = await api('/api/survey', { method: 'POST', body: JSON.stringify({ sid: p.sid, item: p.item, answers: A }) });
+        if (!r.ok) throw new Error(t('s_fallback'));
+        toast(t('s_sent')); delete S.answers[p.sid + p.item];
+        clearCache(); cache.surveys = r.surveys; back();
+      } catch (err) { e.target.disabled = false; e.target.textContent = t('s_send'); toast(err.message); }
+    };
+  },
+  // главная показана сразу (из памяти устройства), свежие данные подгружаются и подставляются на место
+  async home(m) {
+    const alive = () => m.isConnected;
+    const he = m.querySelector('#hero'), te = m.querySelector('#today');
+    quickReorder(m.querySelector('#quick'));
+    if (he) he._html = homeFirst.hero; if (te) te._html = homeFirst.today; // что уже нарисовано
+    let offline = false;
+    const fail = (e) => { if (['not_logged_in', 'session_expired'].includes(e.code)) throw e; if (isOffline(e)) offline = true; return null; };
+    const hero = async () => {
+      const [p, wk, sch] = await Promise.all([load('profile', '/api/profile').catch(fail), load('week', '/api/week').catch(fail), load('schedule', '/api/schedule').catch(fail)]);
+      if (!alive()) return;
+      // блок меняем, только если в нём правда что-то изменилось: иначе кнопка «Анкета» пересоздавалась
+      // прямо под пальцем, и нажатие терялось
+      if (setIfChanged(m.querySelector('#hero'), heroHtml(p ?? stored('profile'), wk ?? stored('week'), sch ?? stored('schedule')))) bindCommon(m.querySelector('#hero'));
+      const td = m.querySelector('#today'); if (td && (sch ?? stored('schedule'))) setIfChanged(td, todayHtml(sch ?? stored('schedule')));
+    };
+    const last = async () => {
+      const box = m.querySelector('#last'); if (!box) return;
+      const g = await load('grades', '/api/grades').catch(fail);
+      if (!alive()) return;
+      const list = g ? allMarks(g).filter((x) => isNum(x.value)).sort((a, b) => b.at - a.at).slice(0, 3) : [];
+      box.innerHTML = list.length ? list.map((x) => markRow(x)).join('') : `<div class="mute">${g ? t('no_last') : (navigator.onLine ? t('site_down') : t('offline'))}</div>`;
+      if (list.length) loadMaxes().then(() => {
+        if (alive() && box.isConnected) box.innerHTML = list.map((x) => markRow(x)).join('');
+      });
+    };
+    await Promise.all([hero(), last()]);
+    setTimeout(() => { if (S.route === 'home') { if (!cache.umkd) api('/api/umkd').then((d) => { cache.umkd = d; keep('umkd', d); }).catch(() => {}); loadMaxes();
+      for (const [k, p] of [['card', '/api/card'], ['accounts', '/api/accounts']]) if (!cache[k] && !stored(k)) api(p).then((d) => { keep(k, d); }).catch(() => {}); } }, 1500);
+    if (alive() && offline) m.querySelector('#netwarn').innerHTML = `<div class="warn">📡 ${navigator.onLine ? t('site_down') : t('offline')}</div>`;
+  },
+  // свайп по любому месту экрана: день едет за пальцем, следующий уже стоит рядом; подсветка дня едет вместе с ним
+  schedule(m) {
+    const d = cache.schedule; if (!d) return;
+    const n = d.days.length || 6, ind = m.querySelector('.dbar .ind');
+    const wrap = (x) => ((x - 1 + n) % n) + 1;
+    let target = null, next = null;
+    const P = pager(m.parentElement, m.querySelector('.pg'), {
+      build: (dir) => { next = target ?? wrap(S.day + dir); return dayPane(d, next); },
+      bind: bindCommon,
+      progress: (p, dir) => {
+        const to = S.day + dir;
+        if (to >= 1 && to <= n) moveInd(ind, S.day - 1 + dir * p);
+      },
+      // палец отпущен: подсветка и цвет подписи сразу едут к итоговому дню (или обратно)
+      settle: (dir, going, ms) => {
+        const day = going ? next : S.day;
+        moveInd(ind, day - 1, ms);
+        m.querySelectorAll('.dbar [data-day]').forEach((b) => b.classList.toggle('on', Number(b.dataset.day) === day));
+        if (going) haptic('page');
+      },
+      commit: () => { S.day = next; },
+    });
+    m.querySelectorAll('.dbar [data-day]').forEach((b) => (b.onclick = () => {
+      const nd = Number(b.dataset.day); if (nd === S.day) return;
+      target = nd; P.go(nd > S.day ? 1 : -1); target = null;
+    }));
+  },
+  grades(m) {
+    if (!cache.week) load('week', '/api/week').catch(() => {}); // текущая рубежка для окна предмета
+    // свайп влево с «Текущих» — «Сессия», вправо с «Сессии» — обратно; плашка переключателя едет за пальцем
+    const ind = m.querySelector('.seg .sind');
+    const other = (dir) => (dir > 0 && S.gtab === 'current' ? 'session' : dir < 0 && S.gtab === 'session' ? 'current' : null);
+    const pos = () => (S.gtab === 'session' ? 1 : 0);
+    const P = pager(m.parentElement, m.querySelector('.pg'), {
+      build: (dir) => { const to = other(dir); return to && gradesPane(to); },
+      bind: bindCommon,
+      progress: (p, dir) => { if (other(dir)) moveInd(ind, pos() + dir * p); },
+      settle: (dir, going, ms) => {
+        const tab = going ? other(dir) : S.gtab;
+        moveInd(ind, tab === 'session' ? 1 : 0, ms);
+        m.querySelectorAll('[data-gtab]').forEach((x) => x.classList.toggle('on', x.dataset.gtab === tab));
+        if (going) haptic('page');
+      },
+      commit: (dir) => { S.gtab = other(dir); },
+    });
+    m.querySelectorAll('[data-gtab]').forEach((b) => (b.onclick = () => { if (S.gtab !== b.dataset.gtab) P.go(b.dataset.gtab === 'session' ? 1 : -1); }));
+    if (S.gtab === 'current' && !cache.session) setTimeout(() => { if (!cache.session) load('session', '/api/session').catch(() => {}); }, 300);
+    // раскрыть семестр / окно предмета — обработчик один на весь экран, работает и на долистанной странице
+    m.onclick = async (e) => {
+      const sem = e.target.closest('[data-sem]'), subj = e.target.closest('[data-subj]');
+      if (subj) return subjectSheet(cache.grades.subjects[subj.dataset.subj]);
+      if (!sem) return;
+      S.openSem[sem.dataset.sem] = !sem.textContent.trim().startsWith('▾');
+      const cur = m.querySelector('.pg-cur'); cur.innerHTML = await gradesPane('session'); bindCommon(cur); touched();
+    };
+  },
+  // месяцы листаются стрелками и свайпом по календарю; день и предмет меняют только нужный кусок экрана
+  async calendar(m) {
+    let D = await calData();
+    const card = m.querySelector('.calcard'), detail = m.querySelector('.caldetail'), title = card.querySelector('.caltitle');
+    const shift = (dir) => { const d = new Date(S.cal.y, S.cal.m + dir, 1); return [d.getFullYear(), d.getMonth()]; };
+    const showDetail = () => { detail.innerHTML = calDetail(D); };
+    const P = pager(card, card.querySelector('.pg'), {
+      build: (dir) => monthHtml(D, ...shift(dir)),
+      settle: (dir, going) => { if (going) haptic('page'); },
+      commit: (dir) => {
+        [S.cal.y, S.cal.m] = shift(dir); S.cal.sel = null;
+        title.textContent = `${MONTHS()[S.cal.m]} ${S.cal.y}`; showDetail();
+      },
+    });
+    card.querySelectorAll('[data-mon]').forEach((b) => (b.onclick = () => P.go(Number(b.dataset.mon))));
+    card.addEventListener('click', (e) => {
+      const d = e.target.closest('.pg-cur [data-d]'); if (!d) return;
+      S.cal.sel = S.cal.sel === d.dataset.d ? null : d.dataset.d;
+      card.querySelectorAll('.pg-cur .d.sel').forEach((x) => x.classList.remove('sel'));
+      if (S.cal.sel) d.classList.add('sel');
+      showDetail(); touched();
+    });
+    m.querySelectorAll('[data-cs]').forEach((b) => (b.onclick = async () => {
+      S.cal.subj = Number(b.dataset.cs);
+      m.querySelectorAll('[data-cs]').forEach((x) => x.classList.toggle('on', x === b));
+      D = await calData(); P.stop();
+      card.querySelector('.pg-cur').innerHTML = monthHtml(D, S.cal.y, S.cal.m); showDetail(); touched();
+    }));
+    // максимальные баллы пришли — обновляем только отметки выбранного дня
+    if (!cache.maxes) loadMaxes().then(() => { if (detail.isConnected && S.cal.sel) showDetail(); });
+  },
+  calc(m) {
+    const C = S.calcState;
+    const save = () => localStorage.setItem('calc', JSON.stringify(C));
+    m.querySelectorAll('[data-goal]').forEach((b) => (b.onclick = () => { C.goal = b.dataset.goal; save(); draw(); }));
+    m.querySelectorAll('[data-thr]').forEach((i) => (i.onchange = () => { C.thr[i.dataset.thr] = num(i.value); save(); draw(); }));
+    m.querySelector('[data-adm]').onchange = (e) => { C.adm = num(e.target.value); save(); draw(); };
+    m.querySelectorAll('[data-calc]').forEach((card) => {
+      const s = cache.grades.subjects[card.dataset.calc];
+      card.oninput = (e) => {
+        const k = e.target.dataset.plan; if (!k) return;
+        const clean = e.target.value.replace(/[^\d]/g, '').slice(0, 3);
+        if (clean !== e.target.value) e.target.value = clean;
+        (C.plans[s.name] ??= {})[k] = clean === '' ? '' : Math.min(100, Number(clean));
+        save();
+        card.querySelector('.cres').innerHTML = calcRows(s, C); // поле ввода не трогаем — курсор остаётся на месте
+      };
+    });
+  },
+  eservices(m) {
+    m.querySelector('#service-search').oninput = e => {
+      const q = e.target.value.trim().toLocaleLowerCase();
+      m.querySelectorAll('[data-service-row]').forEach(row => { row.style.display = row.textContent.toLocaleLowerCase().includes(q) ? '' : 'none'; });
+    };
+    m.querySelectorAll('[data-service]').forEach(button => button.onclick = async () => {
+      if (!window.Backend?.servicePortal) { window.open('https://univer.kaznu.kz' + button.dataset.href, '_blank', 'noopener'); return; }
+      button.disabled = true;
+      try {
+        await window.Backend.servicePortal(button.dataset.service, button.dataset.kind || 'service');
+        delete cache.eservices; localStorage.removeItem('pc:eservices');
+        await render();
+      } catch (e) { toast(e.message); }
+      finally { button.disabled = false; }
+    });
+  },
+  folder(m, p) { m.querySelectorAll('[data-grp]').forEach((b) => (b.onclick = () => { S.grp[p.id] = b.dataset.grp; draw(); })); },
+  settings(m) {
+    // анкета ещё не загружалась — подтягиваем в фоне и ставим фото вместо буквы
+    if (!settings.hidePhoto && !(cache.card ?? stored('card'))) load('card', '/api/card').then(() => {
+      const a = m.querySelector('.avatar'); if (a?.isConnected && !settings.hidePhoto) a.outerHTML = avatarHtml(cache.profile ?? stored('profile') ?? {});
+    }).catch(() => {});
+    m.querySelectorAll('[data-set]').forEach((b) => (b.onclick = async () => {
+      if (settings[b.dataset.set] === b.dataset.v) return;
+      settings[b.dataset.set] = b.dataset.v; applySettings();
+      if (b.dataset.set !== 'lang') {
+        m.querySelectorAll(`[data-set="${b.dataset.set}"]`).forEach((x) => x.classList.toggle('on', x === b));
+        // новая сила вибрации — сразу даём почувствовать (щелчок «скачано»); остальное — обычный щелчок
+        haptic(b.dataset.set === 'vibe' ? 'success' : 'toggle');
+        if (b.dataset.set === 'fileNames') render();
+        return;
+      }
+      // язык: интерфейс переводится сразу (данные — из памяти), а сайт переключается и отдаёт
+      // названия на новом языке в фоне; когда придут — экран тихо обновится
+      relabel(); render();
+      const gen = cacheGeneration;
+      api('/api/lang', { method: 'POST', body: JSON.stringify({ lang: settings.lang }) }).catch(() => {}).then(() => {
+        if (gen !== cacheGeneration) return;
+        clearCache(); dlVersion++; draw(true);
+      });
+    }));
+    const setAccent = (hex, rerender) => { settings.accent = hex; applySettings(); if (rerender) render(); };
+    m.querySelectorAll('[data-acc]').forEach((b) => (b.onclick = () => setAccent(b.dataset.acc, true)));
+    // круглая палитра: цвет применяется сразу, пока двигаешь палец
+    m.querySelector('#palette').onclick = () => colorPicker(settings.accent, (hex) => { setAccent(hex, false); const w = m.querySelector('#palette span'); if (w) w.style.background = hex; m.querySelectorAll('[data-acc]').forEach((x) => x.classList.toggle('on', x.dataset.acc === hex)); });
+    m.querySelector('#terms').onclick = () => termsSheet();
+    m.querySelectorAll('[data-sw]').forEach((b) => (b.onchange = () => {
+      const k = b.dataset.sw;
+      if (k.startsWith('home:')) { const x = k.slice(5); settings.homeHide = b.checked ? settings.homeHide.filter((y) => y !== x) : [...settings.homeHide, x]; }
+      else settings[k] = b.checked;
+      applySettings(); haptic('toggle');
+      if (k === 'hidePhoto') { const a = m.querySelector('.avatar'); if (a) a.outerHTML = avatarHtml(cache.profile ?? stored('profile') ?? {}); }
+      if (k === 'notify') window.Backend?.setNotify?.(b.checked);
+    }));
+    lockSettingsBind(m, () => { const y = S.page._main.scrollTop; draw(true).then(() => { S.page._main.scrollTop = y; }); });
+    const orr = m.querySelector('#order-reset');
+    if (orr) orr.onclick = () => { delete settings.homeOrder; saveSettings(); haptic('delete'); render(); };
+    const bat = m.querySelector('#battery');
+    if (bat) {
+      window.Backend.battery().then((ok) => { if (ok) { bat.textContent = '✓ ' + t('battery_ok'); bat.disabled = true; } }).catch(() => {});
+      bat.onclick = () => window.Backend.requestBattery();
+    }
+    m.querySelector('#refresh').onclick = () => { clearCache(); api('/api/fresh', { method: 'POST' }).catch(() => {}); toast(t('will_reload')); };
+    m.querySelector('#cleardl').onclick = async () => { for (const d of await api('/api/downloads')) await api('/api/downloads/' + d.id, { method: 'DELETE' }); toast(t('dl_cleared')); };
+    m.querySelector('#logout').onclick = async () => { await api('/api/logout', { method: 'POST' }); clearCache(); Object.keys(localStorage).filter((k) => k.startsWith('pc:')).forEach((k) => localStorage.removeItem(k)); loginView(); };
+  },
+};
+
+// экран «Дизайн» (design.js)
+VIEWS.design = async () => designView();
+BIND.design = designBind;
+
+// В приложении: «Открыть» скачанный файл и внешние ссылки обрабатывает система.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href]');
+  if (!a || !window.Backend) return;
+  const href = a.getAttribute('href');
+  const open = href.match(/^\/api\/open\/(\w+)$/);
+  if (open) { e.preventDefault(); window.Backend.open(open[1]).catch((err) => toast(err.message)); }
+  else if (/^(https?|mailto|tel):/.test(href)) { e.preventDefault(); window.Backend.external(href); }
+});
+
+// ---------- выбор и удаление скачанных файлов ----------
+const SEL = new Set();
+// Зажатие отмечает файл. Раньше флаг «проглотить следующее нажатие» оставался взведённым (Android после
+// долгого нажатия click не присылает), и первое нажатие на второй файл терялось. Теперь глотаем только
+// click по тому же файлу и только сразу после зажатия.
+let pressT = null, pressXY = null, pressed = null;
+const rows = () => S.page ? S.page.querySelectorAll('.file[data-saved]') : [];
+function selUpdate() {
+  document.body.classList.toggle('selecting', SEL.size > 0);
+  rows().forEach((r) => r.classList.toggle('sel', SEL.has(r.dataset.saved)));
+  let bar = app.querySelector('.selbar');
+  if (!SEL.size) { bar?.remove(); return; }
+  if (!bar) {
+    bar = document.createElement('div'); bar.className = 'selbar';
+    bar.innerHTML = '<button class="btn ghost" data-selx>✕</button><b></b><button class="btn ghost" data-selall></button><button class="btn bad" data-seldel></button>';
+    bar.onclick = (e) => {
+      if (e.target.closest('[data-selx]')) selClear();
+      else if (e.target.closest('[data-selall]')) { rows().forEach((r) => SEL.add(r.dataset.saved)); selUpdate(); }
+      else if (e.target.closest('[data-seldel]')) selDelete();
+    };
+    app.appendChild(bar);
+  }
+  bar.querySelector('b').textContent = t('selected') + ': ' + SEL.size;
+  bar.querySelector('[data-selall]').textContent = t('all');
+  bar.querySelector('[data-seldel]').textContent = t('delete');
+}
+function selClear() { SEL.clear(); selUpdate(); }
+function selToggle(id) { SEL.has(id) ? SEL.delete(id) : SEL.add(id); haptic('select'); selUpdate(); }
+function selDelete() {
+  const ids = [...SEL];
+  sheet(`<h2 style="margin:0 0 6px;font-size:19px">${t('del_title').replace('{n}', ids.length)}</h2><div class="mute" style="margin-bottom:14px">${t('del_text')}</div>
+    <button class="btn bad wide" data-yes>${t('delete')}</button><button class="btn ghost wide" data-close style="margin-top:8px">${t('cancel')}</button>`, async (e, close) => {
+    if (e.target.closest('[data-close]')) return close();
+    if (!e.target.closest('[data-yes]')) return;
+    close();
+    let ok = 0;
+    for (const id of ids) { try { await api('/api/downloads/' + id, { method: 'DELETE' }); ok++; } catch { /* файл уже удалён */ } }
+    selClear(); dlVersion++; toast(t('deleted_n').replace('{n}', ok)); haptic('delete'); draw(true);
+  });
+}
+app.addEventListener('touchstart', (e) => {
+  const row = e.target.closest('.file[data-saved]'); if (!row) return;
+  pressXY = [e.touches[0].clientX, e.touches[0].clientY];
+  clearTimeout(pressT);
+  if (SEL.size) return; // в режиме выбора обычное нажатие и так отмечает файл
+  pressT = setTimeout(() => { pressT = null; pressed = { row, at: Date.now() }; haptic('hold'); SEL.add(row.dataset.saved); selUpdate(); }, 450);
+}, { passive: true });
+app.addEventListener('touchmove', (e) => { if (pressT && Math.hypot(e.touches[0].clientX - pressXY[0], e.touches[0].clientY - pressXY[1]) > 10) { clearTimeout(pressT); pressT = null; } }, { passive: true });
+app.addEventListener('touchend', () => { clearTimeout(pressT); pressT = null; }, { passive: true });
+app.addEventListener('contextmenu', (e) => { // мышью на компьютере: правая кнопка = зажать
+  const row = e.target.closest('.file[data-saved]'); if (!row) return;
+  e.preventDefault(); SEL.add(row.dataset.saved); selUpdate();
+});
+// в режиме выбора нажатие на файл отмечает его, а не открывает (перехват до остальных обработчиков)
+document.addEventListener('click', (e) => {
+  const row = e.target.closest('.file[data-saved]');
+  const p = pressed; pressed = null;
+  if (p && row === p.row && Date.now() - p.at < 800) { e.preventDefault(); e.stopPropagation(); return; } // отпускание того же зажатия
+  if (!SEL.size || e.target.closest('.selbar, .sheet-bg')) return;
+  e.preventDefault(); e.stopPropagation();
+  if (row) selToggle(row.dataset.saved);
+}, true);
+
+// «Назад»: закрыть окно поверх → вернуться на шаг → на главную → выйти по двойному нажатию
+let backAt = 0;
+window.onBackButton = () => {
+  if (lockShown) return lockShown.querySelector('[data-lk="cancel"]') ? (lockShown.querySelector('[data-lk="cancel"]').click(), undefined) : 'exit'; // экран защиты: «Назад» сворачивает
+  if (photoEditor.close) return photoEditor.close(); // редактор фона: «Назад» = отмена
+  const sh = app.querySelector('.sheet-bg:not(.closing)'); if (sh) { closeSheet(sh); return; }
+  if (SEL.size) { selClear(); return; }
+  if (!app.querySelector('.login')) {
+    if (S.stack.length) return back();
+    if (S.route !== 'home') return tab('home');
+  }
+  if (Date.now() - backAt < 2000) return 'exit';
+  backAt = Date.now(); toast(t('press_again'));
+};
+
+// Запуск: если вход уже был — сразу показываем интерфейс, данные догружаются (без сети не выкидываем на вход)
+if (!isPreview) lockInit(); // защита входа: экран кода поверх, пока приложение загружается
+api('/api/status').then(async (st) => {
+  if (!st.loggedIn) return loginView();
+  await render();
+  const h = isPreview && location.hash.slice(1); // галерея дизайна открывает нужный экран
+  if (h) TABS.some(([k]) => k === h) ? tab(h) : go(h);
+}).catch(() => loginView());
+</script>
+</body>
+</html>

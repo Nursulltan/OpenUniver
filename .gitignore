@@ -1,0 +1,20 @@
+node_modules/
+# личные данные тестового сервера: куки сессии и скачанные файлы — не публиковать
+kaznu-test/.session.json
+kaznu-test/downloads/
+kaznu-test/server.log
+# сборки
+kaznu-app/www/
+kaznu-app/build.log
+kaznu-app/android/local.properties
+kaznu-app/android/.gradle/
+kaznu-app/android/app/build/
+kaznu-app/android/build/
+*.apk
+
+# внутренние заметки и артефакты проверок (могут содержать личные данные)
+/API-проверка.md
+/E-услуги-*.md
+kaznu-test/ssc-catalog-audit.json
+kaznu-test/eservices-layout-check.png
+*.log

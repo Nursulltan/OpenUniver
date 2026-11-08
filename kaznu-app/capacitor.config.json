@@ -1,0 +1,19 @@
+{
+  "appId": "io.github.univerclient",
+  "appName": "Open Univer",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": false
+    },
+    "CapacitorCookies": {
+      "enabled": true
+    },
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}
